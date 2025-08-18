@@ -21,7 +21,7 @@ management:
       allow-unauthenticated: true
   health:
     defaults:
-      enabled: false
+      enabled: true
     db:
       enabled: false
     redis:
