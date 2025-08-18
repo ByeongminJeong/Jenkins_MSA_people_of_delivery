@@ -28,7 +28,7 @@ jobs:
           token: ${{ github.token }}
           filters: |
             ai:
-              - 'ai-service/**
+              - 'ai-service/**'
             store:
               - 'store-service/**'
             cart:
