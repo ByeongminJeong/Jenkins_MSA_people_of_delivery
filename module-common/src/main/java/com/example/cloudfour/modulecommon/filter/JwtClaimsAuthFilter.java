@@ -25,14 +25,15 @@ public class JwtClaimsAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        // 헬스체크 요청은 그냥 통과하도록
-        String path = request.getRequestURI();
-        if (path != null && path.contains("/actuator/health")) {
-            // 아예 강제로 OK 리턴
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.getWriter().write("{\"status\":\"UP\"}");
-            return;
-        }
+
+//        // 헬스체크 요청은 그냥 통과하도록
+//        String path = request.getRequestURI();
+//        if (path != null && path.contains("/actuator/health")) {
+//            // 아예 강제로 OK 리턴
+//            response.setStatus(HttpServletResponse.SC_OK);
+//            response.getWriter().write("{\"status\":\"UP\"}");
+//            return;
+//        }
 
         var auth = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (StringUtils.hasText(auth) && auth.startsWith("Bearer ")) {
