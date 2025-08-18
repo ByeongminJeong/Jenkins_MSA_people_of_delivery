@@ -128,7 +128,7 @@ jobs:
 
           echo "Building ${IMAGE}:${TAG1}"
 
-          docker build -t ${IMAGE}:${TAG1} -f ${MODULE}/Dockerfile ${MODULE}
+          docker build -t ${IMAGE}:${TAG1} -f ${MODULE}/Dockerfile .
           docker tag ${IMAGE}:${TAG1} ${IMAGE}:${TAG2}
 
           docker push ${IMAGE}:${TAG1}
