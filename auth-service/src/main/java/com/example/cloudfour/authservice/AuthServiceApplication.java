@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 @SpringBootApplication
-////@EnableDiscoveryClient
+//@EnableDiscoveryClient
 @EnableJpaAuditing
 public class AuthServiceApplication {
     public static void main(String[] args) {
