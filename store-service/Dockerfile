@@ -2,23 +2,21 @@
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /app
 
-# Gradle wrapper & 설정 먼저 복사 (캐시 최적화)
-COPY gradlew .
-COPY gradle gradle
+# Gradle 캐시 최적화
+COPY gradlew ./
+COPY gradle ./gradle
 COPY build.gradle settings.gradle ./
-COPY store-service/build.gradle store-service/build.gradle
-COPY module-common/build.gradle module-common/build.gradle
+COPY */build.gradle ./
 
-RUN chmod +x gradlew
 RUN ./gradlew dependencies --no-daemon || return 0
 
-# 소스 복사
+# 소스 복사 후 빌드
 COPY . .
 
-# QueryDSL 생성 + JAR 빌드
-RUN ./gradlew :store-service:clean :store-service:compileQuerydsl :store-service:bootJar --no-daemon --build-cache
+# store-service는 Querydsl 필요
+RUN ./gradlew clean compileQuerydsl :store-service:bootJar --no-daemon --build-cache
 
-# 2단계: 런타임
+# 2단계: 실행
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/store-service/build/libs/*.jar app.jar
