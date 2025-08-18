@@ -85,3 +85,4 @@ tasks.register("compileQuerydsl", JavaCompile) {
     destinationDirectory = file(querydslDir)
     options.annotationProcessorPath = configurations.annotationProcessor
 }
+compileJava.dependsOn compileQuerydsl

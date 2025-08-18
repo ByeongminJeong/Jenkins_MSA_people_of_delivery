@@ -10,7 +10,7 @@ COPY */build.gradle ./
 
 # 전체 소스 복사
 COPY . .
-RUN ./gradlew :store-service:bootJar --no-daemon --build-cache
+
 # QueryDSL 빌드 + 해당 모듈 JAR 빌드
 RUN ./gradlew clean compileQuerydsl :store-service:bootJar --no-daemon --build-cache
 

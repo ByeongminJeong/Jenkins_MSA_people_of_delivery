@@ -9,7 +9,6 @@ COPY */build.gradle ./
 COPY . .
 
 
-RUN ./gradlew :module-common:bootJar --no-daemon --build-cache
 # QueryDSL 빌드 + 해당 모듈 JAR 빌드
 RUN ./gradlew clean compileQuerydsl :module-common:bootJar --no-daemon --build-cache
 
