@@ -101,34 +101,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
-      # 모듈 빌드
-      - name: Build module JAR
-        run: |
-          ./gradlew :${{ matrix.name }}:clean :${{ matrix.name }}:bootJar --no-daemon --build-cache
-
-      #OIDC 디버깅 코드 추가
-      - name: Debug GitHub context
-        run: |
-          echo "repository = ${{ github.repository }}"
-          echo "ref        = ${{ github.ref }}"
-          echo "event      = ${{ github.event_name }}"
-
       # AWS OIDC 인증
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -156,7 +128,7 @@ jobs:
 
           echo "Building ${IMAGE}:${TAG1}"
 
-          docker build -t ${IMAGE}:${TAG1} ${MODULE}
+          docker build -t ${IMAGE}:${TAG1} -f ${MODULE}/Dockerfile ${MODULE}
           docker tag ${IMAGE}:${TAG1} ${IMAGE}:${TAG2}
 
           docker push ${IMAGE}:${TAG1}
