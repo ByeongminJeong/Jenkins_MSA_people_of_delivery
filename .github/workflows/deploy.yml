@@ -73,7 +73,7 @@ jobs:
               "{\"name\":\"cart-service\",\"repo\":\"peopleofdelivery/cart-service\"}" \
               "{\"name\":\"user-service\",\"repo\":\"peopleofdelivery/user-service\"}" \
               "{\"name\":\"auth-service\",\"repo\":\"peopleofdelivery/auth-service\"}" \
-              "{\"name\":\"\ai-service\",\"repo\":\"peopleofdelivery/ai-service\"}" \
+              "{\"name\":\"ai-service\",\"repo\":\"peopleofdelivery/ai-service\"}" \
               "{\"name\":\"module-common\",\"repo\":\"peopleofdelivery/module-common\"}" \
             )
           fi
