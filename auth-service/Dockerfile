@@ -8,10 +8,10 @@ COPY build.gradle settings.gradle ./
 COPY */build.gradle ./
 COPY . .
 
-RUN ./gradlew :user-service:bootJar --no-daemon --build-cache
+RUN ./gradlew :auth-service:bootJar --no-daemon --build-cache
 
 # 2단계: 실행
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
-COPY --from=builder /app/user-service/build/libs/*.jar app.jar
+COPY --from=builder /app/auth-service/build/libs/*.jar app.jar
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
