@@ -8,6 +8,7 @@ COPY build.gradle settings.gradle ./
 COPY */build.gradle ./
 COPY . .
 
+RUN apt-get update && apt-get install -y curl wget
 RUN ./gradlew :auth-service:bootJar --no-daemon --build-cache
 
 # 2단계: 실행
