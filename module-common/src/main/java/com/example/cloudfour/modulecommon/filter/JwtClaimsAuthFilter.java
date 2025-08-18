@@ -25,10 +25,12 @@ public class JwtClaimsAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        //  헬스체크 및 공개 엔드포인트는 JWT 검증 건너뛰기
+        // 헬스체크 요청은 그냥 통과하도록
         String path = request.getRequestURI();
-        if (path.contains("actuator")) {
-            chain.doFilter(request, response);
+        if (path != null && path.contains("/actuator/health")) {
+            // 아예 강제로 OK 리턴
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().write("{\"status\":\"UP\"}");
             return;
         }
 
