@@ -56,13 +56,13 @@ jobs:
           if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
             modules+=("{\"name\":\"user-service\",\"repo\":\"peopleofdelivery/user-service\"}")
           fi
-          if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
+          if [ "${{ steps.filter.outputs.auth }}" = "true" ]; then
             modules+=("{\"name\":\"auth-service\",\"repo\":\"peopleofdelivery/auth-service\"}")
           fi
-          if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
+          if [ "${{ steps.filter.outputs.ai }}" = "true" ]; then
             modules+=("{\"name\":\"ai-service\",\"repo\":\"peopleofdelivery/ai-service\"}")
           fi
-          if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
+          if [ "${{ steps.filter.outputs.common }}" = "true" ]; then
             modules+=("{\"name\":\"module-common\",\"repo\":\"peopleofdelivery/module-common\"}")
           fi
 
