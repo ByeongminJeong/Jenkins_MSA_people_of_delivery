@@ -25,6 +25,12 @@ public class JwtClaimsAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        //  헬스체크 및 공개 엔드포인트는 JWT 검증 건너뛰기
+        String path = request.getRequestURI();
+        if (path.contains("actuator")) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         var auth = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (StringUtils.hasText(auth) && auth.startsWith("Bearer ")) {
