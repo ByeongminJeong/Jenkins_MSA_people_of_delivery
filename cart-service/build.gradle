@@ -29,7 +29,7 @@ ext {
 
 dependencies {
     implementation project(':module-common')
-    implementation 'org.springframework.cloud:spring-cloud-starter-config'
+    //implementation 'org.springframework.cloud:spring-cloud-starter-config'
     //implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'org.springframework.boot:spring-boot-starter-batch'
