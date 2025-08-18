@@ -1,0 +1,163 @@
+name: Build & Push changed modules to ECR
+
+on:
+  push:
+    branches: [ develop ]  # develop에 push(PR merge) 시 실행
+
+permissions:
+  id-token: write    # OIDC용
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2  # 리전
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+      changed: ${{ steps.build-matrix.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 모듈별 변경 감지
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ github.token }}
+          filters: |
+            ai:
+              - 'ai-service/**
+            store:
+              - 'store-service/**'
+            cart:
+              - 'cart-service/**'
+            user:
+              - 'user-service/**'
+            auth:
+              - 'auth-service/**'
+            common:
+              - 'module-common/**'
+
+      # 매트릭스 JSON 생성
+      - name: Build matrix JSON
+        id: build-matrix
+        shell: bash
+        run: |
+          modules=()
+
+          if [ "${{ steps.filter.outputs.store }}" = "true" ]; then
+            modules+=("{\"name\":\"store-service\",\"repo\":\"peopleofdelivery/store-service\"}")
+          fi
+          if [ "${{ steps.filter.outputs.cart }}" = "true" ]; then
+            modules+=("{\"name\":\"cart-service\",\"repo\":\"peopleofdelivery/cart-service\"}")
+          fi
+          if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
+            modules+=("{\"name\":\"user-service\",\"repo\":\"peopleofdelivery/user-service\"}")
+          fi
+          if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
+            modules+=("{\"name\":\"auth-service\",\"repo\":\"peopleofdelivery/auth-service\"}")
+          fi
+          if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
+            modules+=("{\"name\":\"ai-service\",\"repo\":\"peopleofdelivery/ai-service\"}")
+          fi
+          if [ "${{ steps.filter.outputs.user }}" = "true" ]; then
+            modules+=("{\"name\":\"module-common\",\"repo\":\"peopleofdelivery/module-common\"}")
+          fi
+
+          # common 변경 시 모든 모듈 재빌드
+          if [ "${{ steps.filter.outputs.common }}" = "true" ]; then
+            modules=( \
+              "{\"name\":\"store-service\",\"repo\":\"peopleofdelivery/store-service\"}" \
+              "{\"name\":\"cart-service\",\"repo\":\"peopleofdelivery/cart-service\"}" \
+              "{\"name\":\"user-service\",\"repo\":\"peopleofdelivery/user-service\"}" \
+              "{\"name\":\"auth-service\",\"repo\":\"peopleofdelivery/auth-service\"}" \
+              "{\"name\":\"\ai-service\",\"repo\":\"peopleofdelivery/ai-service\"}" \
+              "{\"name\":\"module-common\",\"repo\":\"peopleofdelivery/module-common\"}" \
+            )
+          fi
+
+          if [ ${#modules[@]} -eq 0 ]; then
+            echo '{"include":[]}' > matrix.json
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            printf '{"include":[%s]}\n' "$(IFS=,; echo "${modules[*]}")" > matrix.json
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "matrix=$(cat matrix.json)" >> $GITHUB_OUTPUT
+          echo "Generated matrix:"
+          cat matrix.json
+
+  build-and-push:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      # 모듈 빌드
+      - name: Build module JAR
+        run: |
+          ./gradlew :${{ matrix.name }}:clean :${{ matrix.name }}:bootJar --no-daemon --build-cache
+
+      #OIDC 디버깅 코드 추가
+      - name: Debug GitHub context
+        run: |
+          echo "repository = ${{ github.repository }}"
+          echo "ref        = ${{ github.ref }}"
+          echo "event      = ${{ github.event_name }}"
+
+      # AWS OIDC 인증
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ECR 로그인 (레지스트리 주소를 outputs.registry로 제공)
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Docker Builds, Push
+      - name: Build & Push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          MODULE=${{ matrix.name }}
+          REPO=${{ matrix.repo }}
+          SHORT_SHA=${GITHUB_SHA::7}
+
+          IMAGE=${ECR_REGISTRY}/${REPO}
+          TAG1=develop-${SHORT_SHA}
+          TAG2=latest-develop
+
+          echo "Building ${IMAGE}:${TAG1}"
+
+          docker build -t ${IMAGE}:${TAG1} ${MODULE}
+          docker tag ${IMAGE}:${TAG1} ${IMAGE}:${TAG2}
+
+          docker push ${IMAGE}:${TAG1}
+          docker push ${IMAGE}:${TAG2}
