@@ -3,6 +3,7 @@ package com.example.cloudfour.authservice.config;
 import com.example.cloudfour.modulecommon.filter.JwtClaimsAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -21,6 +22,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtClaimsAuthFilter jwtClaimsAuthFilter) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
+                .cors(cors->{})
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
@@ -28,6 +30,7 @@ public class SecurityConfig {
                                 "/auth/email/**", "/.well-known/jwks.json",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/actuator/health","/actuator/**", "/internal/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS,"/**").permitAll()
                         .requestMatchers("/auth/password", "/auth/email/change/**").authenticated()
                         .anyRequest().authenticated()
                 )
