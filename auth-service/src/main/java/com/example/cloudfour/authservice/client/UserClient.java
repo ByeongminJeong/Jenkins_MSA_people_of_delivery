@@ -13,7 +13,8 @@ import java.util.UUID;
 public class UserClient {
     private final RestTemplate rt;
 
-    private static final String BASE = "http://user-service/internal/users";
+    //private static final String BASE = "http://user-service/internal/users";
+    private static final String BASE = "http://user-service.peopleofdelivery";
 
     public UserResposneDTO.ExistsByEmailResponseDTO existsByEmail(String email) {
         return rt.getForObject(BASE + "/exists?email={email}", UserResposneDTO.ExistsByEmailResponseDTO.class, email);
