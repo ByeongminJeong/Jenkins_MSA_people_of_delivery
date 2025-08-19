@@ -14,7 +14,7 @@ public class RestTemplateConfig {
     @Bean
     //@LoadBalanced
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
-        return builder.connectTimeout(Duration.ofSeconds(2)).readTimeout(Duration.ofSeconds(3))
+        return builder.connectTimeout(Duration.ofSeconds(5)).readTimeout(Duration.ofSeconds(5))
                 .build();
     }
 }
