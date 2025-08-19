@@ -1,29 +1,18 @@
 server:
   port: 8014
 
-#eureka:
-#  instance:
-#    prefer-ip-address: true
-#  client:
-#    enabled: true
-#    register-with-eureka: true
-#    fetch-registry: true
-#    serviceUrl:
-#      defaultZone: http://localhost:8761/eureka/
 management:
   endpoints:
     web:
+      base-path: /actuator
       exposure:
-        include: "*"
+        include: health,info
   endpoint:
     health:
-      show-details: always
-      allow-unauthenticated: true
+      show-details: always     # 상세 정보 표시
   health:
-    defaults:
-      enabled: false
     db:
-      enabled: false
+      enabled: false           # DB 체크 비활성화
     redis:
       enabled: false
 
