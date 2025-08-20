@@ -18,13 +18,13 @@ public class UserClient {
     //private static final String BASE = "http://user-service/internal/users";
     private static final String BASE = "http://user-service.peopleofdelivery:8014/internal/users";
 
-    public UserResposneDTO.ExistsByEmailResponseDTO existsByEmail(String email) {
+    public UserResponseDTO.ExistsByEmailResponseDTO existsByEmail(String email) {
         Map<String, Object> params = new HashMap<>();
         params.put("email", email);
 
         return rt.getForObject(
                 BASE + "/exists?email={email}",
-                UserResposneDTO.ExistsByEmailResponseDTO.class,
+                UserResponseDTO.ExistsByEmailResponseDTO.class,
                 params
         );
     }
