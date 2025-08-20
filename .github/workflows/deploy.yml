@@ -133,3 +133,5 @@ jobs:
 
           docker push ${IMAGE}:${TAG1}
           docker push ${IMAGE}:${TAG2}
+
+
