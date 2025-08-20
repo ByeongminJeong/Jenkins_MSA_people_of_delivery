@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -13,10 +15,18 @@ import java.util.UUID;
 public class UserClient {
     private final RestTemplate rt;
 
-    private static final String BASE = "http://user-service/internal/users";
+    //private static final String BASE = "http://user-service/internal/users";
+    private static final String BASE = "http://user-service.peopleofdelivery:8014/internal/users";
 
-    public UserResponseDTO.ExistsByEmailResponseDTO existsByEmail(String email) {
-        return rt.getForObject(BASE + "/exists?email={email}", UserResponseDTO.ExistsByEmailResponseDTO.class, email);
+    public UserResposneDTO.ExistsByEmailResponseDTO existsByEmail(String email) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("email", email);
+
+        return rt.getForObject(
+                BASE + "/exists?email={email}",
+                UserResposneDTO.ExistsByEmailResponseDTO.class,
+                params
+        );
     }
 
     public UserResponseDTO.UserBriefResponseDTO create(UserRequestDTO.CreateUserRequestDTO req) {

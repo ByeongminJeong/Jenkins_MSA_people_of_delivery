@@ -26,6 +26,12 @@ public class JwtClaimsAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
+        String path = request.getRequestURI();
+        if (path.contains("/internal/")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         var auth = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (StringUtils.hasText(auth) && auth.startsWith("Bearer ")) {
             String token = auth.substring(7);
