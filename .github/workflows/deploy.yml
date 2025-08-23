@@ -98,8 +98,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
     outputs:
-      image: ${{ steps.export.outputs.image }}
-      module: ${{ steps.export.outputs.module }}
+      image: ${{ steps.build.outputs.image }}
+      module: ${{ steps.build.outputs.module }}
 
     steps:
       - uses: actions/checkout@v4
@@ -135,9 +135,6 @@ jobs:
 
           echo "image=${IMAGE}:${TAG}" >> $GITHUB_OUTPUT
           echo "module=${MODULE}" >> $GITHUB_OUTPUT
-        outputs:
-          image: ${{ steps.build.outputs.image }}
-          module: ${{ steps.build.outputs.module }}
 
   deploy:
     needs: build-and-push
