@@ -1,4 +1,4 @@
-name: Build & Push changed modules to ECR
+name: Build, Push & Deploy to ECS
 
 on:
   push:
@@ -108,12 +108,12 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ECR 로그인 (레지스트리 주소를 outputs.registry로 제공)
+      # ECR 로그인
       - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Docker Builds, Push
+      # Docker Build & Push
       - name: Build & Push Docker image
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
@@ -123,15 +123,42 @@ jobs:
           SHORT_SHA=${GITHUB_SHA::7}
 
           IMAGE=${ECR_REGISTRY}/${REPO}
-          TAG1=develop-${SHORT_SHA}
-          TAG2=latest-develop
+          TAG=develop-${SHORT_SHA}
 
-          echo "Building ${IMAGE}:${TAG1}"
+          echo "Building ${IMAGE}:${TAG}"
+          docker build -t ${IMAGE}:${TAG} -f ${MODULE}/Dockerfile .
+          docker push ${IMAGE}:${TAG}
 
-          docker build -t ${IMAGE}:${TAG1} -f ${MODULE}/Dockerfile .
-          docker tag ${IMAGE}:${TAG1} ${IMAGE}:${TAG2}
+          echo "image=${IMAGE}:${TAG}" >> $GITHUB_ENV
+          echo "module=${MODULE}" >> $GITHUB_ENV
 
-          docker push ${IMAGE}:${TAG1}
-          docker push ${IMAGE}:${TAG2}
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
+      # 새 태스크 정의 등록 (Secrets 포함 치환)
+      - name: Register new task definition
+        run: |
+          sed -e "s|<IMAGE>|${{ env.image }}|" \
+              -e "s|<DB_URL>|${{ secrets.DB_URL }}|" \
+              -e "s|<DB_USERNAME>|${{ secrets.DB_USERNAME }}|" \
+              -e "s|<DB_PASSWORD>|${{ secrets.DB_PASSWORD }}|" \
+              ${{ env.module }}/taskdef.json > new-taskdef.json
+
+          aws ecs register-task-definition --cli-input-json file://new-taskdef.json
+
+      # ECS 서비스 업데이트 (Blue/Green 배포 트리거)
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster cloudfour \  
+            --service ${{ env.module }}-task-service-blue_green \  
+            --force-new-deployment
