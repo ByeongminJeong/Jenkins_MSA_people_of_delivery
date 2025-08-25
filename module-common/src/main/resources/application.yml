@@ -13,7 +13,14 @@ spring:
         format_sql: true
         highlight_sql: true
 
-#  eureka:
+
+  spring:
+    batch:
+      job:
+        enabled: false
+
+
+  #  eureka:
 #    instance:
 #      prefer-ip-address: true
 #    client:

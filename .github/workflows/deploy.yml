@@ -1,4 +1,4 @@
-name: Build, Push & Deploy to ECS
+name: Build & Push changed modules to ECR
 
 on:
   push:
@@ -97,9 +97,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
-    outputs:
-      image: ${{ steps.build.outputs.image }}
-      module: ${{ steps.build.outputs.module }}
 
     steps:
       - uses: actions/checkout@v4
@@ -111,14 +108,13 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ECR 로그인
+      # ECR 로그인 (레지스트리 주소를 outputs.registry로 제공)
       - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Docker Build & Push
+      # Docker Builds, Push
       - name: Build & Push Docker image
-        id: build
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
@@ -127,42 +123,15 @@ jobs:
           SHORT_SHA=${GITHUB_SHA::7}
 
           IMAGE=${ECR_REGISTRY}/${REPO}
-          TAG=develop-${SHORT_SHA}
+          TAG1=develop-${SHORT_SHA}
+          TAG2=latest-develop
 
-          echo "Building ${IMAGE}:${TAG}"
-          docker build -t ${IMAGE}:${TAG} -f ${MODULE}/Dockerfile .
-          docker push ${IMAGE}:${TAG}
+          echo "Building ${IMAGE}:${TAG1}"
 
-          echo "image=${IMAGE}:${TAG}" >> $GITHUB_OUTPUT
-          echo "module=${MODULE}" >> $GITHUB_OUTPUT
+          docker build -t ${IMAGE}:${TAG1} -f ${MODULE}/Dockerfile .
+          docker tag ${IMAGE}:${TAG1} ${IMAGE}:${TAG2}
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+          docker push ${IMAGE}:${TAG1}
+          docker push ${IMAGE}:${TAG2}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
 
-      # 새 태스크 정의 등록 (Secrets 포함 치환)
-      - name: Register new task definition
-        run: |
-          sed -e "s|<IMAGE>|${{ needs.build-and-push.outputs.image }}|" \
-              -e "s|<DB_URL>|${{ secrets.DB_URL }}|" \
-              -e "s|<DB_USERNAME>|${{ secrets.DB_USERNAME }}|" \
-              -e "s|<DB_PASSWORD>|${{ secrets.DB_PASSWORD }}|" \
-              ${{ needs.build-and-push.outputs.module }}/taskdef.json > new-taskdef.json
-
-          aws ecs register-task-definition --cli-input-json file://new-taskdef.json
-
-      # ECS 서비스 업데이트 (Blue/Green 배포 트리거)
-      - name: Update ECS service
-        run: |
-          aws ecs update-service \
-            --cluster cloudfour \
-            --service ${{ needs.build-and-push.outputs.module }}-task-service-blue_green \
-            --force-new-deployment
