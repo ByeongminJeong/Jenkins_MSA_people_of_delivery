@@ -11,8 +11,9 @@ COPY */build.gradle ./
 # 전체 소스 복사
 COPY . .
 
-# QueryDSL 빌드 + 해당 모듈 JAR 빌드
-RUN ./gradlew clean compileQuerydsl :store-service:bootJar --no-daemon --build-cache
+# 이제 compileJava만으로 QueryDSL까지 처리됨
+RUN ./gradlew clean --no-daemon
+RUN ./gradlew :store-service:bootJar --no-daemon --build-cache
 
 # 2단계: 실행
 FROM eclipse-temurin:21-jre-jammy

@@ -80,9 +80,8 @@ tasks.withType(JavaCompile) {
     options.annotationProcessorGeneratedSourcesDirectory = file(querydslDir)
 }
 
-tasks.register("compileQuerydsl", JavaCompile) {
-    source = sourceSets.main.java
-    classpath = configurations.annotationProcessor + sourceSets.main.compileClasspath
-    destinationDirectory = file(querydslDir)
+// 기존 compileQuerydsl 태스크를 삭제하고 다음으로 대체
+compileJava {
+    dependsOn processResources
     options.annotationProcessorPath = configurations.annotationProcessor
 }
