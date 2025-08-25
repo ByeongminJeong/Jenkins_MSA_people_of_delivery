@@ -38,6 +38,8 @@ spring:
   data:
     mongodb:
       uri: ${MONGO_URI}
+
+
   datasource:
     url: ${LOCAL_DB_URL}
     driver-class-name: org.postgresql.Driver
