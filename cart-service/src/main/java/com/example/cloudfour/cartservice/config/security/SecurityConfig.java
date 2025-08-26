@@ -24,7 +24,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/internal/**", "/actuator/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
+                        .requestMatchers("/internal/**", "/actuator/**", "/v3/api-docs/**", "/swagger-ui/**","/users/actuator/**", "/store/actuator/**", "/module-common/actuator/**", "/carts/actuator/**", "/auth/actuator/**", "/payments/actuator/**", "/ai/actuator/**").permitAll()
                         .requestMatchers("/carts/**","/cartItems/**","/orders/**","/profile/**").authenticated()
                         .anyRequest().authenticated()
                 )

@@ -26,7 +26,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/login", "/auth/register/**", "/auth/refresh",
                                 "/auth/email/**", "/.well-known/jwks.json",
-                                "/v3/api-docs/**", "/swagger-ui/**", "/actuator/**"
+                                "/v3/api-docs/**", "/swagger-ui/**", "/actuator/**","/users/actuator/**", "/store/actuator/**", "/module-common/actuator/**", "/carts/actuator/**", "/auth/actuator/**", "/payments/actuator/**", "/ai/actuator/**"
                         ).permitAll()
                         .requestMatchers("/auth/password", "/auth/email/change/**").authenticated()
                         .anyRequest().authenticated()
