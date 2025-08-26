@@ -13,7 +13,10 @@
       "essential": true,
       "portMappings": [
         {
+          "appProtocol": "http",
           "containerPort": 8012,
+          "hostPort": 8012,
+          "name": "cart-service",
           "protocol": "tcp"
         }
       ],
@@ -21,6 +24,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/cart-service",
+          "awslogs-create-group": "true",
           "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }

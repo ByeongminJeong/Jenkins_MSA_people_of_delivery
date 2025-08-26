@@ -13,7 +13,10 @@
       "essential": true,
       "portMappings": [
         {
+          "appProtocol": "http",
           "containerPort": 8011,
+          "hostPort": 8011,
+          "name": "module-common",
           "protocol": "tcp"
         }
       ],
@@ -21,6 +24,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/module-common",
+          "awslogs-create-group": "true",
           "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }

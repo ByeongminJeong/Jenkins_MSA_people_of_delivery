@@ -13,7 +13,10 @@
       "essential": true,
       "portMappings": [
         {
-          "containerPort": 8015,
+          "appProtocol": "http",
+          "containerPort": 8016,
+          "hostPort": 8016,
+          "name": "ai-service",
           "protocol": "tcp"
         }
       ],
@@ -21,6 +24,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/ai-service",
+          "awslogs-create-group": "true",
           "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }

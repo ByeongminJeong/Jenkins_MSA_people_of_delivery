@@ -13,7 +13,10 @@
       "essential": true,
       "portMappings": [
         {
+          "appProtocol": "http",
           "containerPort": 8014,
+          "hostPort": 8014,
+          "name": "user-service",
           "protocol": "tcp"
         }
       ],
@@ -21,6 +24,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/user-service",
+          "awslogs-create-group": "true",
           "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }

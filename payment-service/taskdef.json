@@ -13,7 +13,10 @@
       "essential": true,
       "portMappings": [
         {
-          "containerPort": 8016,
+          "appProtocol": "http",
+          "containerPort": 8017,
+          "hostPort": 8017,
+          "name": "payment-service",
           "protocol": "tcp"
         }
       ],
@@ -21,6 +24,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/payment-service",
+          "awslogs-create-group": "true",
           "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }
