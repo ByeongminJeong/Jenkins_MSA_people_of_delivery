@@ -158,6 +158,10 @@ jobs:
               -e "s|<DB_URL>|${{ secrets.DB_URL }}|" \
               -e "s|<DB_USERNAME>|${{ secrets.DB_USERNAME }}|" \
               -e "s|<DB_PASSWORD>|${{ secrets.DB_PASSWORD }}|" \
+              -e "s|<GOOGLE_CLIENT_ID>|${{ secrets.GOOGLE_CLIENT_ID }}|" \
+              -e "s|<GOOGLE_CLIENT_SECRET_ID>|${{ secrets.GOOGLE_CLIENT_SECRET_ID }}|" \
+              -e "s|<MAIL_USERNAME>|${{ secrets.MAIL_USERNAME }}|" \
+              -e "s|<MAIL_PASSWORD>|${{ secrets.MAIL_PASSWORD }}|" \
               ${{ matrix.name }}/taskdef.json > new-taskdef.json
 
           aws ecs register-task-definition --cli-input-json file://new-taskdef.json
