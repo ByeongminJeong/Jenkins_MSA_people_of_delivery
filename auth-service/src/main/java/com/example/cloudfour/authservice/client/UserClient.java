@@ -17,7 +17,7 @@ public class UserClient {
 
     //private static final String BASE = "http://user-service/internal/users";
     //private static final String BASE = "http://user-service.peopleofdelivery:8014/internal/users";
-    private static final String BASE = "http://internal-alb-internal-902295756.ap-northeast-2.elb.amazonaws.com/internal/users";
+    private static final String BASE = "http://internal-alb-internal-902295756.ap-northeast-2.elb.amazonaws.com/users";
 
     public UserResponseDTO.ExistsByEmailResponseDTO existsByEmail(String email) {
         Map<String, Object> params = new HashMap<>();

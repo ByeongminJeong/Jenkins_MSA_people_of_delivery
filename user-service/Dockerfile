@@ -2,11 +2,14 @@
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /app
 
+# 루트 gradle 환경만 복사
 COPY gradlew ./
 COPY gradle ./gradle
-COPY build.gradle settings.gradle ./
-COPY */build.gradle ./
-COPY . .
+COPY settings.gradle build.gradle ./
+
+# user-service 및 공통 모듈만 복사
+COPY module-common ./module-common
+COPY user-service ./user-service
 
 RUN ./gradlew :user-service:bootJar --no-daemon --build-cache
 
