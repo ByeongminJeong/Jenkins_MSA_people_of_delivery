@@ -137,7 +137,7 @@ jobs:
           echo "module=${MODULE}" >> $GITHUB_OUTPUT
 
   deploy:
-    needs: build-and-push
+    needs: [detect-changes, build-and-push]   # detect-changes도 의존하도록 수정
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -170,4 +170,3 @@ jobs:
             --service ${{ matrix.name }}-task-service-blue_green \
             --task-definition ${{ matrix.name }}-task \
             --force-new-deployment
-  
