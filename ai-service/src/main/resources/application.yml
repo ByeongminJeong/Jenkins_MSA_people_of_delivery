@@ -13,22 +13,13 @@ spring:
         format_sql: true
         highlight_sql: true
 
-#    eureka:
-#      instance:
-#        prefer-ip-address: true
-#      client:
-#        register-with-eureka: true
-#        fetch-registry: true
-#        serviceUrl:
-#          defaultZone: http://localhost:8761/eureka/
-
 
   datasource:
-    url: ${LOCAL_DB_URL}
+    url: ${DB_URL}
     driver-class-name: org.postgresql.Driver
     #    driver-class-name: org.h2.Driver # 테스트용
-    username: ${LOCAL_DB_USERNAME}
-    password: ${LOCAL_DB_PASSWORD}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   cloud:
     config:
       enabled: false

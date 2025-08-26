@@ -1,0 +1,37 @@
+{
+  "family": "cart-service-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::061039771693:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::061039771693:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "cart-service",
+      "image": "<IMAGE>",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8012,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cart-service",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [
+        { "name": "SPRING_PROFILES_ACTIVE", "value": "prod" },
+        { "name": "DB_URL", "value": "<DB_URL>" },
+        { "name": "DB_USERNAME", "value": "<DB_USERNAME>" },
+        { "name": "DB_PASSWORD", "value": "<DB_PASSWORD>" },
+        { "name": "KAFKA_BOOTSTRAP_SERVERS", "value": "<KAFKA_BOOTSTRAP_SERVERS>" }
+      ]
+    }
+  ]
+}

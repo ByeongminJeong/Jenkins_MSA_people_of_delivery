@@ -1,0 +1,42 @@
+{
+  "family": "user-service-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::061039771693:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::061039771693:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "user-service",
+      "image": "<IMAGE>",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8014,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/user-service",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [
+        { "name": "SPRING_PROFILES_ACTIVE", "value": "prod" },
+        { "name": "DB_URL", "value": "<DB_URL>" },
+        { "name": "DB_USERNAME", "value": "<DB_USERNAME>" },
+        { "name": "DB_PASSWORD", "value": "<DB_PASSWORD>" },
+        { "name": "REDIS_HOST", "value": "redis.peopleofdelivery" },
+        { "name": "REDIS_PORT", "value": "6379" },
+        { "name": "GOOGLE_CLIENT_ID", "value": "<GOOGLE_CLIENT_ID>" },
+        { "name": "GOOGLE_CLIENT_SECRET_ID", "value": "<GOOGLE_CLIENT_SECRET_ID>" },
+        { "name": "MAIL_USERNAME", "value": "<MAIL_USERNAME>" },
+        { "name": "MAIL_PASSWORD", "value": "<MAIL_PASSWORD>" }
+      ]
+    }
+  ]
+}

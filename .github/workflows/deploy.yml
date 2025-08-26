@@ -162,6 +162,11 @@ jobs:
               -e "s|<GOOGLE_CLIENT_SECRET_ID>|${{ secrets.GOOGLE_CLIENT_SECRET_ID }}|" \
               -e "s|<MAIL_USERNAME>|${{ secrets.MAIL_USERNAME }}|" \
               -e "s|<MAIL_PASSWORD>|${{ secrets.MAIL_PASSWORD }}|" \
+              -e "s|<KAFKA_BOOTSTRAP_SERVERS>|${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}|" \
+              -e "s|<MONGO_URI>|${{ secrets.MONGO_URI }}|" \
+              -e "s|<WEATHER_API_KEY>|${{ secrets.WEATHER_API_KEY }}|" \
+              -e "s|<GEMINI_API_KEY>|${{ secrets.GEMINI_API_KEY }}|" \
+              -e "s|<TOSS_SECRET>|${{ secrets.TOSS_SECRET }}|" \
               ${{ matrix.name }}/taskdef.json > new-taskdef.json
 
           aws ecs register-task-definition --cli-input-json file://new-taskdef.json
