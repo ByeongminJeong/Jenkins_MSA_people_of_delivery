@@ -14,7 +14,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -129,12 +128,11 @@ public class StoreClient {
             log.warn("Menu ID가 null입니다");
             return null;
         }
-            
+
         try {
             String url = BASE + "/menus/" + menuId + "/stock";
             log.debug("재고 조회 요청: {}", url);
 
-            @SuppressWarnings("unchecked")
             MenuQuantityResponseDTO response = rt.getForObject(url, MenuQuantityResponseDTO.class);
             
             if (response != null) {

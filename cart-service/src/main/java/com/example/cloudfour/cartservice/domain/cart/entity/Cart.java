@@ -69,7 +69,6 @@ public class Cart {
             throw new CartException(CartErrorCode.INVALID_INPUT);
         }
         cartItem.setCart(this);
-        this.cartItems.add(cartItem);
     }
 
     public void removeCartItem(UUID cartItemId) {

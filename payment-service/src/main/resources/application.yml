@@ -33,5 +33,31 @@ spring:
       enabled: false
 
 toss:
-  secret-key: ${TOSS_SECRET_KEY}
+  secret-key: ${TOSS_SECRET}
   webhook-secret: ${TOSS_WEBHOOK_SECRET:webhook_secret_key}
+
+kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  producer:
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    acks: all
+    retries: 3
+    batch-size: 16384
+    linger-ms: 10
+    buffer-memory: 33554432
+    properties:
+      enable.idempotence: true
+  consumer:
+    group-id: payment-service-group
+    auto-offset-reset: earliest
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+    enable-auto-commit: false
+    properties:
+      spring.json.trusted.packages: "com.example.cloudfour.cartservice.event,com.example.cloudfour.paymentservice.domain.payment.event"
+  topic:
+    order-events: order-events
+    payment-events: payment-events
+
+

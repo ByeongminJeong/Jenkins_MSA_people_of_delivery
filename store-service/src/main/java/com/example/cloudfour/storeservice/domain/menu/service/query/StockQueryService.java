@@ -13,6 +13,7 @@ import com.example.cloudfour.storeservice.domain.menu.repository.StockRepository
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ public class StockQueryService {
     private final StockRepository stockRepository;
     private final MenuRepository menuRepository;
 
+    @Transactional(readOnly = true)
     public StockResponseDTO getMenuStock(UUID menuId){
         Menu menu = menuRepository.findById(menuId).orElseThrow(()->new MenuException(MenuErrorCode.NOT_FOUND));
         UUID stockId = menu.getStock().getId();

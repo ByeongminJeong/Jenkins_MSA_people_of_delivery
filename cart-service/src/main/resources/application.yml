@@ -39,11 +39,34 @@ spring:
   datasource:
     url: ${LOCAL_DB_URL}
     driver-class-name: org.postgresql.Driver
-    #    driver-class-name: org.h2.Driver # 테스트용
     username: ${LOCAL_DB_USERNAME}
     password: ${LOCAL_DB_PASSWORD}
   cloud:
     config:
       enabled: false
+
+kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  producer:
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    acks: all
+    retries: 3
+    batch-size: 16384
+    linger-ms: 10
+    buffer-memory: 33554432
+  consumer:
+    group-id: order-service-group
+    auto-offset-reset: earliest
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+    enable-auto-commit: false
+    properties:
+      spring.json.trusted.packages: "com.example.cloudfour.paymentservice.domain.payment.event,com.example.cloudfour.cartservice.event"
+  topic:
+    order-events: order-events
+    payment-events: payment-events
+
+
 
 

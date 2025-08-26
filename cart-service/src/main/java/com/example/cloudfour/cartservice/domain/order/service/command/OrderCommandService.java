@@ -25,12 +25,14 @@ import com.example.cloudfour.cartservice.domain.order.exception.StockException;
 import com.example.cloudfour.cartservice.domain.order.repository.OrderItemOptionRepository;
 import com.example.cloudfour.cartservice.domain.order.repository.OrderItemRepository;
 import com.example.cloudfour.cartservice.domain.order.repository.OrderRepository;
+import com.example.cloudfour.cartservice.service.OrderEventPublishService;
 import com.example.cloudfour.modulecommon.dto.CurrentUser;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,6 +47,7 @@ public class OrderCommandService {
     private final CartRepository cartRepository;
     private final StoreClient storeClient;
     private final UserClient userClient;
+    private final OrderEventPublishService orderEventPublishService;
 
 
     public OrderResponseDTO.OrderCreateResponseDTO createOrder(
@@ -73,7 +76,9 @@ public class OrderCommandService {
         saveOrderItemOptions(orderItems);
         
         deleteCart(cart);
-        
+
+        publishOrderCreatedEvent(order, totalPrice, userAddress.getAddress());
+
         log.info("주문 생성 완료 (orderId={}, totalPrice={})", order.getId(), totalPrice);
         return OrderConverter.toOrderCreateResponseDTO(order);
     }
@@ -90,7 +95,7 @@ public class OrderCommandService {
         Order order = findOrderById(orderId);
         OrderStatus prevStatus = order.getStatus();
         OrderStatus newStatus = req.getNewStatus();
-        
+
         if (newStatus == OrderStatus.주문취소 && prevStatus != OrderStatus.주문취소) {
             log.info("주문 취소로 인한 재고 복구 시작: orderId={}", orderId);
             restoreStock(orderId);
@@ -111,7 +116,7 @@ public class OrderCommandService {
         validateOrderOwnership(orderId, user.id());
 
         Order order = findOrderById(orderId);
-        
+
         if (order.getStatus() != OrderStatus.주문취소) {
             log.info("주문 삭제로 인한 재고 복구 시작: orderId={}", orderId);
             restoreStock(orderId);
@@ -350,5 +355,19 @@ public class OrderCommandService {
         log.info("재고 복구 완료: orderId={}", orderId);
     }
 
-
+    private void publishOrderCreatedEvent(Order order, int totalPrice, String deliveryAddress) {
+        try {
+            orderEventPublishService.publishOrderCreatedEvent(
+                order.getId(),
+                order.getUser(),
+                order.getStore(),
+                BigDecimal.valueOf(totalPrice),
+                order.getStatus().name(),
+                deliveryAddress
+            );
+            log.info("주문 생성 이벤트 발행 완료: orderId={}", order.getId());
+        } catch (Exception e) {
+            log.error("주문 생성 이벤트 발행 실패: orderId={}, error={}", order.getId(), e.getMessage(), e);
+        }
+    }
 }

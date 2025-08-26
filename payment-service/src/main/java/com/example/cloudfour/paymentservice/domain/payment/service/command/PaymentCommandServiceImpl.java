@@ -12,6 +12,10 @@ import com.example.cloudfour.paymentservice.domain.payment.repository.PaymentHis
 import com.example.cloudfour.paymentservice.domain.payment.repository.PaymentRepository;
 import com.example.cloudfour.paymentservice.domain.payment.service.IdempotencyService;
 import com.example.cloudfour.paymentservice.domain.payment.service.WebhookSignatureService;
+import com.example.cloudfour.paymentservice.domain.payment.service.EventPublishService;
+import com.example.cloudfour.paymentservice.domain.payment.event.PaymentApprovedEvent;
+import com.example.cloudfour.paymentservice.domain.payment.event.PaymentFailedEvent;
+
 import com.example.cloudfour.paymentservice.domain.payment.apiclient.OrderClient;
 import com.example.cloudfour.paymentservice.domain.payment.apiclient.TossApiClient;
 import com.example.cloudfour.paymentservice.domain.payment.apiclient.UserClient;
@@ -23,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -42,6 +47,7 @@ public class PaymentCommandServiceImpl implements PaymentCommandService {
     private final OrderClient orderClient;
     private final UserClient userClient;
     private final StoreClient storeClient;
+    private final EventPublishService eventPublishService;
 
     @Override
     public PaymentResponseDTO.PaymentConfirmResponseDTO confirmPayment(PaymentRequestDTO.PaymentConfirmRequestDTO request, UUID userId) {
@@ -113,6 +119,26 @@ public class PaymentCommandServiceImpl implements PaymentCommandService {
                 log.error("주문 상태 업데이트 실패하지만 결제는 성공: orderId={}, error={}", request.getOrderId(), e.getMessage());
             }
 
+            try {
+                PaymentApprovedEvent paymentApprovedEvent = PaymentApprovedEvent.create(
+                    payment.getOrderId(),
+                    payment.getUserId(),
+                    order.getStoreId(),
+                    payment.getPaymentKey(),
+                    BigDecimal.valueOf(payment.getAmount()),
+                    payment.getPaymentMethod(),
+                    payment.getApprovedAt()
+                );
+                
+                eventPublishService.publishPaymentApprovedEvent(paymentApprovedEvent);
+                log.info("PaymentApproved 이벤트 발행 완료: orderId={}, eventId={}", 
+                    payment.getOrderId(), paymentApprovedEvent.getEventId());
+                    
+            } catch (Exception eventException) {
+                log.error("PaymentApproved 이벤트 발행 실패하지만 결제는 성공: orderId={}, error={}", 
+                    request.getOrderId(), eventException.getMessage());
+            }
+
             log.info("결제 승인 완료: paymentId={}, paymentKey={}", payment.getId(), payment.getPaymentKey());
             return paymentConverter.toConfirmResponse(payment);
 
@@ -141,6 +167,27 @@ public class PaymentCommandServiceImpl implements PaymentCommandService {
                     .build();
 
             paymentHistoryRepository.save(failedHistory);
+
+            try {
+                PaymentFailedEvent paymentFailedEvent = PaymentFailedEvent.create(
+                    failedPayment.getOrderId(),
+                    failedPayment.getUserId(),
+                    order.getStoreId(), // 실제 주문의 storeId 사용
+                    failedPayment.getPaymentKey(),
+                    BigDecimal.valueOf(failedPayment.getAmount()),
+                    failedPayment.getPaymentMethod(),
+                    failedPayment.getFailedReason(),
+                    LocalDateTime.now()
+                );
+                
+                eventPublishService.publishPaymentFailedEvent(paymentFailedEvent);
+                log.info("PaymentFailed 이벤트 발행 완료: orderId={}, eventId={}", 
+                    failedPayment.getOrderId(), paymentFailedEvent.getEventId());
+                    
+            } catch (Exception eventException) {
+                log.error("PaymentFailed 이벤트 발행 실패: orderId={}, error={}", 
+                    failedPayment.getOrderId(), eventException.getMessage());
+            }
 
             throw new PaymentException(PaymentErrorCode.PAYMENT_APPROVAL_FAILED);
         }

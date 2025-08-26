@@ -34,6 +34,9 @@ public class Payment extends BaseEntity {
     private UUID userId;
 
     @Column(nullable = false)
+    private UUID storeId;
+
+    @Column(nullable = false)
     private Integer amount;
 
     @Column(nullable = false)
@@ -64,10 +67,20 @@ public class Payment extends BaseEntity {
         this.rawResponse = maskSensitiveInfo(rawResponse);
     }
 
+    public void approve(LocalDateTime approvedAt) {
+        this.paymentStatus = PaymentStatus.APPROVED;
+        this.approvedAt = approvedAt;
+    }
+
     public void fail(String reason, String rawResponse) {
         this.paymentStatus = PaymentStatus.FAILED;
         this.failedReason = reason;
         this.rawResponse = maskSensitiveInfo(rawResponse);
+    }
+
+    public void fail(String reason, LocalDateTime failedAt) {
+        this.paymentStatus = PaymentStatus.FAILED;
+        this.failedReason = reason;
     }
 
     public void cancel(String reason, LocalDateTime canceledAt, String rawResponse) {
@@ -81,6 +94,10 @@ public class Payment extends BaseEntity {
 
     public boolean canCancel() {
         return PaymentStatus.APPROVED.equals(this.paymentStatus);
+    }
+    
+    public LocalDateTime getApprovedAt() {
+        return this.approvedAt;
     }
 
     private String maskSensitiveInfo(String rawResponse) {
