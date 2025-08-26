@@ -1,2 +1,2 @@
 rootProject.name = 'MSA_people_of_delivery'
-//include 'module-common','apigateway','discovery','cart-service','store-service','user-service', 'ai-service', 'auth-service', 'payment-service'
+include 'module-common','apigateway','discovery','cart-service','store-service','user-service', 'ai-service', 'auth-service', 'payment-service'
