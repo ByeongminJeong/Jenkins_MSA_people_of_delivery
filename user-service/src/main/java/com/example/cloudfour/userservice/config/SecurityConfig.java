@@ -23,7 +23,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtClaimsAuthFilter jwtClaimsAuthFilter) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -32,7 +32,7 @@ public class SecurityConfig {
                         .requestMatchers("/users/**", "/profile/**").authenticated()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(new JwtClaimsAuthFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtClaimsAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 

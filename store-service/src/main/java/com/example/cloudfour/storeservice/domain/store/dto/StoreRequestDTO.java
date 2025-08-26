@@ -2,12 +2,11 @@ package com.example.cloudfour.storeservice.domain.store.dto;
 
 import com.example.cloudfour.storeservice.domain.store.controller.StoreCommonRequestDTO;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Getter;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
 
 
 public class StoreRequestDTO {
@@ -18,11 +17,29 @@ public class StoreRequestDTO {
         @JsonUnwrapped
         StoreCommonRequestDTO storeCommonRequestDTO;
         private String storePicture;
+
+        @NotNull
+        @Size(max=50)
         private String phone;
+
+        @NotNull
+        @Size(max=500)
         private String content;
+
+        @NotNull
+        @Min(value = 0)
         private Integer minPrice;
+
+        @NotNull
+        @Min(value=0)
         private Integer deliveryTip;
+
+        @NotNull
+        @Size(max=255)
         private String operationHours;
+
+        @NotNull
+        @Size(max=255)
         private String closedDays;
     }
 
@@ -31,65 +48,5 @@ public class StoreRequestDTO {
     public static class StoreUpdateRequestDTO {
         @JsonUnwrapped
         StoreCommonRequestDTO storeCommonRequestDTO;
-    }
-
-    @Getter
-    @Builder
-    public static class testRequestDTO{
-        private UUID storeId;
-        private UUID storeCategoryId;
-        private UUID userId;
-
-        private String name;
-        private String address;
-        private String phone;
-        private String content;
-        private Integer minPrice;
-        private Integer deliveryTip;
-        private Float rating;
-        private Integer likeCount;
-        private Integer reviewCount;
-        private String operationHours;
-        private String closedDays;
-        private String storeCategory;
-        private String siDo;
-        private String siGunGu;
-        private String eupMyeonDong;
-        private String pictureURL;
-
-        private LocalDateTime createdAt;
-        private List<MenuDto> menus;
-        private List<ReviewDto> reviews;
-
-        @Getter
-        @Builder
-        public static class MenuDto {
-            private UUID id;
-            private UUID menuCategoryId;
-            private String name;
-            private String content;
-            private Integer price;
-            private String menuPicture;
-            private String menuCategory;
-            private String menuStatus;
-            private List<MenuOptionDto> menuOptions;
-            private LocalDateTime createdAt;
-        }
-
-        @Getter
-        @Builder
-        public static class ReviewDto {
-            private UUID id;
-            private Double score;
-            private String content;
-        }
-
-        @Getter
-        @Builder
-        public static class MenuOptionDto {
-            private UUID id;
-            private Integer additionalPrice;
-            private String optionName;
-        }
     }
 }

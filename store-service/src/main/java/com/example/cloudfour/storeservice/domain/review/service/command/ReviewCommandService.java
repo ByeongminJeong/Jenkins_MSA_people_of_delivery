@@ -1,7 +1,6 @@
 package com.example.cloudfour.storeservice.domain.review.service.command;
 
 import com.example.cloudfour.modulecommon.dto.CurrentUser;
-import com.example.cloudfour.storeservice.domain.collection.document.ReviewDocument;
 import com.example.cloudfour.storeservice.domain.collection.repository.command.ReviewCommandRepository;
 import com.example.cloudfour.storeservice.domain.review.converter.ReviewConverter;
 import com.example.cloudfour.storeservice.domain.review.dto.ReviewRequestDTO;
@@ -48,32 +47,6 @@ public class ReviewCommandService {
         reviewRepository.save(review);
         log.info("리뷰 생성 성공");
         return ReviewConverter.toReviewCreateResponseDTO(review);
-    }
-
-    public ReviewResponseDTO.testResponseDTO createReviewTest(ReviewRequestDTO.testRequestDTO reviewCreateRequestDTO,
-                                                                  CurrentUser user) {
-        ReviewDocument review = ReviewDocument.builder()
-                        .reviewId(reviewCreateRequestDTO.getReviewId())
-                        .userId(reviewCreateRequestDTO.getUserId())
-                        .storeId(reviewCreateRequestDTO.getStoreId())
-                        .userName(reviewCreateRequestDTO.getUserName())
-                        .score(reviewCreateRequestDTO.getScore())
-                        .content(reviewCreateRequestDTO.getContent())
-                        .pictureUrl(reviewCreateRequestDTO.getPictureUrl())
-                        .createdAt(reviewCreateRequestDTO.getCreatedAt())
-                                .build();
-
-        reviewCommandRepository.save(review);
-        return ReviewResponseDTO.testResponseDTO.builder()
-                .reviewId(review.getReviewId())
-                .userId(review.getUserId())
-                .storeId(review.getStoreId())
-                .userName(review.getUserName())
-                .score(review.getScore())
-                .content(review.getContent())
-                .pictureUrl(review.getPictureUrl())
-                .createdAt(review.getCreatedAt())
-                .build();
     }
 
     public void deleteReview(UUID reviewId, CurrentUser user) {

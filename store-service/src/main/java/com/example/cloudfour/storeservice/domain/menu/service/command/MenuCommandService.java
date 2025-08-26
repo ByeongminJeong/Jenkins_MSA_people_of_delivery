@@ -9,6 +9,7 @@ import com.example.cloudfour.storeservice.domain.menu.dto.MenuOptionResponseDTO;
 import com.example.cloudfour.storeservice.domain.menu.entity.Menu;
 import com.example.cloudfour.storeservice.domain.menu.entity.MenuCategory;
 import com.example.cloudfour.storeservice.domain.menu.entity.MenuOption;
+import com.example.cloudfour.storeservice.domain.menu.entity.Stock;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuException;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuErrorCode;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuOptionErrorCode;
@@ -37,6 +38,7 @@ public class MenuCommandService {
     private final StoreRepository storeRepository;
     private final MenuCategoryRepository menuCategoryRepository;
     private final MenuOptionRepository menuOptionRepository;
+    private final StockCommandService stockCommandService;
 
     public MenuResponseDTO.MenuDetailResponseDTO createMenu(
             MenuRequestDTO.MenuCreateRequestDTO requestDTO,
@@ -65,10 +67,12 @@ public class MenuCommandService {
             throw new MenuException(MenuErrorCode.ALREADY_ADD);
         }
 
+        Stock stock = Stock.builder().quantity(requestDTO.getQuantity()).build();
+
         Menu menu = MenuConverter.toMenu(requestDTO);
         menu.setStore(store);
         menu.setMenuCategory(menuCategory);
-
+        stock.setMenu(menu);
 
         Menu savedMenu = menuRepository.save(menu);
         log.info("메뉴 생성 완료");
@@ -110,6 +114,15 @@ public class MenuCommandService {
         );
         menu.setMenuCategory(menuCategory);
 
+        Long quantity = requestDTO.getQuantity();
+        UUID stockId = menu.getStock().getId();
+        if(quantity>0){
+            log.info("재고 증가");
+            stockCommandService.increaseStock(stockId, quantity);
+        }else{
+            log.info("재고 감소");
+            stockCommandService.decreaseStock(stockId, quantity);
+        }
         Menu updatedMenu = menuRepository.save(menu);
         log.info("메뉴 수정 성공");
         return MenuConverter.toMenuDetail1ResponseDTO(updatedMenu);
@@ -129,7 +142,7 @@ public class MenuCommandService {
             throw new MenuException(MenuErrorCode.UNAUTHORIZED_ACCESS);
         }
         log.info("메뉴 삭제 권한 성공");
-        menuRepository.delete(menu);
+        menu.softDelete();
         log.info("메뉴 ID: {}가 삭제되었습니다.", menuId);
     }
 
@@ -207,7 +220,7 @@ public class MenuCommandService {
             throw new MenuException(MenuErrorCode.UNAUTHORIZED_ACCESS);
         }
         log.info("메뉴옵션 삭제 권한 확인 성공");
-        menuOptionRepository.delete(menuOption);
+        menuOption.softDelete();
         log.info("메뉴 옵션 ID: {}가 삭제되었습니다.", optionId);
     }
 }

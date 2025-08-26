@@ -1,10 +1,13 @@
 package com.example.cloudfour.storeservice.domain.menu.entity;
 
+import com.example.cloudfour.storeservice.domain.common.enums.SyncStatus;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuOptionErrorCode;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuOptionException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
@@ -31,6 +34,11 @@ public class MenuCategory {
 
     @Column(name = "category", nullable = false)
     private String category;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "syncStatus", nullable = false)
+    @Builder.Default
+    private SyncStatus syncStatus = SyncStatus.CREATED_PENDING;
 
     @OneToMany(mappedBy = "menuCategory", cascade = CascadeType.ALL)
     @Builder.Default

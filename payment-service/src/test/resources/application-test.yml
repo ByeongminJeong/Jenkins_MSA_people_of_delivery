@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+  
+  h2:
+    console:
+      enabled: true
+
+toss:
+  secret-key: test_secret_key
+  webhook-secret: test_webhook_secret
+
+service:
+  order:
+    base-url: http://localhost:8083
+
+eureka:
+  client:
+    enabled: false
+  server:
+    enabled: false
+
+logging:
+  level:
+    com.example.cloudfour.paymentservice: DEBUG
+    org.springframework.security: DEBUG

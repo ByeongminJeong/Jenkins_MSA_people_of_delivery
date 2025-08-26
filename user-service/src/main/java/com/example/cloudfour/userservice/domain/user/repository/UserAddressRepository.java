@@ -1,6 +1,7 @@
 package com.example.cloudfour.userservice.domain.user.repository;
 
 
+import com.example.cloudfour.userservice.domain.user.dto.UserAddressResponseDTO;
 import com.example.cloudfour.userservice.domain.user.entity.UserAddress;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

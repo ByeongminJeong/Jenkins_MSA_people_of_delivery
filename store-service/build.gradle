@@ -48,7 +48,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
-    //중요: MongoDB를 실제 사용하지 않더라도 런타임에 클래스가 필요함
+    // ★ 중요: MongoDB를 실제 사용하지 않더라도 런타임에 클래스가 필요함
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
     annotationProcessor 'org.springframework.boot:spring-boot-starter-data-mongodb'
 
@@ -71,7 +71,8 @@ dependencies {
     implementation("com.querydsl:querydsl-mongodb:${querydslVersion}") {
         exclude group: "org.mongodb", module: "mongo-java-driver"
     }
-
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 

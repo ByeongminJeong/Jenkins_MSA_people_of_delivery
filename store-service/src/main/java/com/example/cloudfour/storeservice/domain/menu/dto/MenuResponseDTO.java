@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public class MenuResponseDTO {
@@ -14,10 +16,11 @@ public class MenuResponseDTO {
     public static class MenuDetailResponseDTO {
         @JsonUnwrapped
         MenuCommonResponseDTO menuCommonResponseDTO;
+        private Long quantity;
         private String content;
-        private java.time.LocalDateTime createdAt;
-        private java.time.LocalDateTime updatedAt;
-        private java.util.List<MenuOptionDTO> menuOptions;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
+        private List<MenuOptionDTO> menuOptions;
     }
 
     @Getter
@@ -65,6 +68,6 @@ public class MenuResponseDTO {
     @Getter
     @Builder
     public static class MenuStoreListResponseDTO {
-        private java.util.List<MenuListResponseDTO> menus;
+        private List<MenuListResponseDTO> menus;
     }
 }

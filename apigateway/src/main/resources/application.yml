@@ -43,13 +43,13 @@ spring:
                 - AuthFilter
                 - RewritePath=/api/store-service/(?<segment>.*),/${segment}
 
-            - id: order-service
-              uri: lb://order-service
+            - id: cart-service
+              uri: lb://cart-service
               predicates:
-                - Path=/api/order-service/**
+                - Path=/api/cart-service/**
               filters:
                 - AuthFilter
-                - RewritePath=/api/order-service/(?<segment>.*),/${segment}
+                - RewritePath=/api/cart-service/(?<segment>.*),/${segment}
 
             - id: payment-service
               uri: lb://payment-service

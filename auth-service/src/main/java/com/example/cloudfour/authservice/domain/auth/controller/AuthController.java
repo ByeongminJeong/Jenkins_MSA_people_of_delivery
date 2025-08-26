@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -66,6 +67,7 @@ public class AuthController {
     }
 
     @PostMapping("/password")
+    @PreAuthorize("isAuthenticated() and authentication.principal.id == #user.id()")
     @Operation(summary = "비밀번호 재설정", description = "비밀번호를 재설정합니다.")
     public CustomResponse<Void> changePassword(
             @Valid @RequestBody AuthRequestDTO.PasswordChangeDto request,
@@ -89,6 +91,7 @@ public class AuthController {
     }
 
     @PostMapping("/email/change/start")
+    @PreAuthorize("isAuthenticated() and authentication.principal.id == #user.id()")
     @Operation(summary = "이메일 수정", description = "새로 입력된 이메일로 이메일을 수정합니다.")
     public CustomResponse<Void> startEmailChange(@AuthenticationPrincipal CurrentUser user,
                                                  @Valid @RequestBody AuthRequestDTO.EmailChangeStartRequestDTO req) {
@@ -97,6 +100,7 @@ public class AuthController {
     }
 
     @PostMapping("/email/change/verify")
+    @PreAuthorize("isAuthenticated() and authentication.principal.id == #user.id()")
     @Operation(summary = "수정된 이메일 검증", description = "수정된 이메일의 인증 코드를 검증합니다.")
     public CustomResponse<Void> verifyEmailChange(@AuthenticationPrincipal CurrentUser user,
                                                   @Valid @RequestBody AuthRequestDTO.EmailChangeVerifyRequestDTO req) {

@@ -3,6 +3,7 @@ package com.example.cloudfour.userservice.domain.user.service;
 import com.example.cloudfour.userservice.domain.region.entity.Region;
 import com.example.cloudfour.userservice.domain.region.repository.RegionRepository;
 import com.example.cloudfour.userservice.domain.user.converter.UserConverter;
+import com.example.cloudfour.userservice.domain.user.dto.UserAddressResponseDTO;
 import com.example.cloudfour.userservice.domain.user.dto.UserRequestDTO;
 import com.example.cloudfour.userservice.domain.user.dto.UserResponseDTO;
 import com.example.cloudfour.userservice.domain.user.entity.User;
@@ -61,5 +62,11 @@ public class UserAddressService {
         UserAddress ua = userAddressRepository.findByIdAndUser_Id(addressId, userId)
                 .orElseThrow(() -> new UserAddressException(UserAddressErrorCode.NOT_FOUND));
         userAddressRepository.delete(ua);
+    }
+
+    public UserAddressResponseDTO findAddress(UUID userId){
+        UserAddress ua = userAddressRepository.findPrimaryByIdAndUserId(userId)
+                .orElseThrow(() -> new UserAddressException(UserAddressErrorCode.NOT_FOUND));
+        return UserConverter.toFindAddress(ua);
     }
 }

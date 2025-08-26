@@ -1,6 +1,9 @@
 package com.example.cloudfour.storeservice.domain.store.converter;
 
 import com.example.cloudfour.storeservice.domain.collection.document.StoreDocument;
+import com.example.cloudfour.storeservice.domain.commondto.MenuCartResponseDTO;
+import com.example.cloudfour.storeservice.domain.commondto.StoreCartResponseDTO;
+import com.example.cloudfour.storeservice.domain.menu.entity.Menu;
 import com.example.cloudfour.storeservice.domain.store.controller.StoreCommonResponseDTO;
 import com.example.cloudfour.storeservice.domain.store.dto.StoreRequestDTO;
 import com.example.cloudfour.storeservice.domain.store.dto.StoreResponseDTO;
@@ -124,7 +127,7 @@ public class StoreConverter {
                 .deliveryTip(storeDocument.getDeliveryTip())
                 .operationHours(storeDocument.getOperationHours())
                 .closedDays(storeDocument.getClosedDays())
-                .category(storeDocument.getStoreCategory())
+                .category(storeDocument.getStoreCategory().getStoreCategoryName())
                 .build();
     }
 
@@ -134,6 +137,14 @@ public class StoreConverter {
                 .name(storeDocument.getName())
                 .address(storeDocument.getAddress())
                 .storePicture(storeDocument.getPictureURL())
+                .build();
+    }
+
+    public static StoreCartResponseDTO toFindStoreDTO(Store store){
+        return StoreCartResponseDTO.builder()
+                .storeId(store.getId())
+                .userId(store.getOwnerId())
+                .name(store.getName())
                 .build();
     }
 }

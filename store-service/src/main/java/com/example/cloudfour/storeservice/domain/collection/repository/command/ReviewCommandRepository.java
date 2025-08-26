@@ -5,5 +5,6 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.UUID;
 
-public interface ReviewCommandRepository extends MongoRepository<ReviewDocument, UUID> {
+public interface ReviewCommandRepository extends MongoRepository<ReviewDocument, UUID>,ReviewCustomCommandRepository {
+
 }

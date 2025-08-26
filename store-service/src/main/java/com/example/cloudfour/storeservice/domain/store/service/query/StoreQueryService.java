@@ -3,13 +3,18 @@ package com.example.cloudfour.storeservice.domain.store.service.query;
 import com.example.cloudfour.modulecommon.dto.CurrentUser;
 import com.example.cloudfour.storeservice.domain.collection.document.StoreDocument;
 import com.example.cloudfour.storeservice.domain.collection.repository.query.StoreSearchRepository;
-import com.example.cloudfour.storeservice.domain.commondto.RegionResponseDTO;
+
+import com.example.cloudfour.storeservice.domain.common.RegionResponseDTO;
+
+import com.example.cloudfour.storeservice.domain.commondto.StoreCartResponseDTO;
 import com.example.cloudfour.storeservice.domain.region.exception.RegionErrorCode;
 import com.example.cloudfour.storeservice.domain.region.exception.RegionException;
 import com.example.cloudfour.storeservice.domain.store.converter.StoreConverter;
 import com.example.cloudfour.storeservice.domain.store.dto.StoreResponseDTO;
+import com.example.cloudfour.storeservice.domain.store.entity.Store;
 import com.example.cloudfour.storeservice.domain.store.exception.StoreErrorCode;
 import com.example.cloudfour.storeservice.domain.store.exception.StoreException;
+import com.example.cloudfour.storeservice.domain.store.repository.StoreRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +33,7 @@ import java.util.UUID;
 public class StoreQueryService {
 
     private final StoreSearchRepository storeMongoRepository;
+    private final StoreRepository query;
     private final RestTemplate rt;
     private static final String BASE = "http://user-service/internal/regions";
 
@@ -103,4 +109,11 @@ public class StoreQueryService {
         log.info("가게 상제 조회 성공");
         return StoreConverter.documentToStoreDetailResponseDTO(store);
     }
+
+    public StoreCartResponseDTO findStore(UUID storeId){
+        Store findStore = query.findByIdAndIsDeletedFalse(storeId).orElseThrow(
+                ()->new StoreException(StoreErrorCode.NOT_FOUND));
+        return StoreConverter.toFindStoreDTO(findStore);
+    }
+
 }

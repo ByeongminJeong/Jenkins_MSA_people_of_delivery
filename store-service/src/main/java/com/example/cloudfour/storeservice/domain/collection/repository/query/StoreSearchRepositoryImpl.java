@@ -56,7 +56,7 @@ public class StoreSearchRepositoryImpl extends QuerydslRepositorySupport impleme
 
         int pageSize = pageable.getPageSize();
         List<StoreDocument> stores = from(storeDocument)
-                .where(storeDocument.storeCategoryId.eq(categoryId), regionBuilder
+                .where(storeDocument.storeCategory.id.eq(categoryId), regionBuilder
                         , storeDocument.createdAt.lt(cursor)).orderBy(storeDocument.createdAt.desc()).limit(pageSize+1)
                 .fetch();
 
@@ -76,7 +76,7 @@ public class StoreSearchRepositoryImpl extends QuerydslRepositorySupport impleme
 
         if(keyword!=null && !keyword.isEmpty()){
             builder.and(storeDocument.name.containsIgnoreCase(keyword)
-                    .or(storeDocument.storeCategory.containsIgnoreCase(keyword)));
+                    .or(storeDocument.storeCategory.storeCategoryName.containsIgnoreCase(keyword)));
         }
 
         BooleanBuilder regionBuilder = new BooleanBuilder();
@@ -132,7 +132,7 @@ public class StoreSearchRepositoryImpl extends QuerydslRepositorySupport impleme
 
         if(result!=null && result.getMenus() != null){
             return result.getMenus().stream()
-                    .filter(menu -> menu.getMenuCategoryId().equals(categoryId))
+                    .filter(menu -> menu.getMenuCategory().getId().equals(categoryId))
                     .collect(Collectors.toList());
         }
 

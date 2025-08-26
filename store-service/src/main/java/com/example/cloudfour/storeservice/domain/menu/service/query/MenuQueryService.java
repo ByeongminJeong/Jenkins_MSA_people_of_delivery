@@ -3,10 +3,14 @@ package com.example.cloudfour.storeservice.domain.menu.service.query;
 import com.example.cloudfour.modulecommon.dto.CurrentUser;
 import com.example.cloudfour.storeservice.domain.collection.document.StoreDocument;
 import com.example.cloudfour.storeservice.domain.collection.repository.query.StoreSearchRepository;
+import com.example.cloudfour.storeservice.domain.commondto.MenuCartResponseDTO;
+import com.example.cloudfour.storeservice.domain.commondto.MenuOptionCartResponseDTO;
 import com.example.cloudfour.storeservice.domain.menu.converter.MenuConverter;
 import com.example.cloudfour.storeservice.domain.menu.converter.MenuOptionConverter;
 import com.example.cloudfour.storeservice.domain.menu.dto.MenuResponseDTO;
 import com.example.cloudfour.storeservice.domain.menu.dto.MenuOptionResponseDTO;
+import com.example.cloudfour.storeservice.domain.menu.entity.Menu;
+import com.example.cloudfour.storeservice.domain.menu.entity.MenuOption;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuCategoryErrorCode;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuCategoryException;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuException;
@@ -14,6 +18,8 @@ import com.example.cloudfour.storeservice.domain.menu.exception.MenuErrorCode;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuOptionErrorCode;
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuOptionException;
 import com.example.cloudfour.storeservice.domain.menu.repository.MenuCategoryRepository;
+import com.example.cloudfour.storeservice.domain.menu.repository.MenuOptionRepository;
+import com.example.cloudfour.storeservice.domain.menu.repository.MenuRepository;
 import com.example.cloudfour.storeservice.domain.store.exception.StoreErrorCode;
 import com.example.cloudfour.storeservice.domain.store.exception.StoreException;
 
@@ -32,6 +38,8 @@ import java.util.UUID;
 public class MenuQueryService {
     private final MenuCategoryRepository menuCategoryRepository;
     private final StoreSearchRepository storeMongoRepository;
+    private final MenuRepository menuQuery;
+    private final MenuOptionRepository menuOptionQuery;
 
     public MenuResponseDTO.MenuStoreListResponseDTO getMenusByStoreWithCursor(
             UUID storeId, CurrentUser user
@@ -184,5 +192,17 @@ public class MenuQueryService {
                 });
         log.info("메뉴 옵션 상세 조회 완료");
         return MenuOptionConverter.documentToMenuOptionSimpleResponseDTO(option);
+    }
+
+    public MenuCartResponseDTO findMenu(UUID menuId){
+        Menu findMenu = menuQuery.findById(menuId).orElseThrow(()->new MenuException(MenuErrorCode.NOT_FOUND));
+        return MenuConverter.toFindMenuDTO(findMenu);
+    }
+
+    public MenuOptionCartResponseDTO findMenuOption(UUID optionId){
+        MenuOption findMenuOption = menuOptionQuery.findById(optionId).orElseThrow(
+                ()-> new MenuOptionException(MenuOptionErrorCode.NOT_FOUND)
+        );
+        return MenuOptionConverter.toFindMenuOptionDTO(findMenuOption);
     }
 }

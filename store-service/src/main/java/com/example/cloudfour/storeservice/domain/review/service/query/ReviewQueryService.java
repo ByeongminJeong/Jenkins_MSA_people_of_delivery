@@ -3,7 +3,7 @@ package com.example.cloudfour.storeservice.domain.review.service.query;
 import com.example.cloudfour.modulecommon.dto.CurrentUser;
 import com.example.cloudfour.storeservice.domain.collection.document.ReviewDocument;
 import com.example.cloudfour.storeservice.domain.collection.repository.query.ReviewSearchRepository;
-import com.example.cloudfour.storeservice.domain.commondto.UserResponseDTO;
+import com.example.cloudfour.storeservice.domain.common.UserResponseDTO;
 import com.example.cloudfour.storeservice.domain.review.converter.ReviewConverter;
 import com.example.cloudfour.storeservice.domain.review.dto.ReviewResponseDTO;
 import com.example.cloudfour.storeservice.domain.review.exception.ReviewErrorCode;

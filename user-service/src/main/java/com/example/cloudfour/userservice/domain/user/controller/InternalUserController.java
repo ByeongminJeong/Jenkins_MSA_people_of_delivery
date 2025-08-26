@@ -2,6 +2,8 @@ package com.example.cloudfour.userservice.domain.user.controller;
 
 import com.example.cloudfour.userservice.domain.user.dto.AuthRequestDTO;
 import com.example.cloudfour.userservice.domain.user.dto.AuthResponseDTO;
+import com.example.cloudfour.userservice.domain.user.dto.UserAddressResponseDTO;
+import com.example.cloudfour.userservice.domain.user.service.UserAddressService;
 import com.example.cloudfour.userservice.domain.user.service.command.UserCommandService;
 import com.example.cloudfour.userservice.domain.user.service.query.UserQueryService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class InternalUserController {
 
     private final UserQueryService query;
     private final UserCommandService command;
+    private final UserAddressService addressService;
 
     @GetMapping("/exists")
     public AuthResponseDTO.ExistsByEmailResponseDTO existsByEmail(@RequestParam String email) {
@@ -51,6 +54,11 @@ public class InternalUserController {
             @PathVariable UUID id,
             @RequestBody AuthRequestDTO.PasswordVerifyRequestDTO req) {
         return query.verifyPassword(id, req);
+    }
+
+    @GetMapping("/addresses/{userId}")
+    public UserAddressResponseDTO addressById(@PathVariable UUID userId){
+        return addressService.findAddress(userId);
     }
 
     @PostMapping("/{id}/email-verified")

@@ -2,6 +2,7 @@ package com.example.cloudfour.storeservice.domain.menu.dto;
 
 import com.example.cloudfour.storeservice.domain.menu.controller.MenuCommonRequestDTO;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -12,6 +13,8 @@ public class MenuRequestDTO {
     public static class MenuCreateRequestDTO {
         @JsonUnwrapped
         MenuCommonRequestDTO.MenuCommonMainRequestDTO menuCommonMainRequestDTO;
+        @NotNull
+        Long quantity;
     }
 
     @Getter
@@ -19,6 +22,8 @@ public class MenuRequestDTO {
     public static class MenuUpdateRequestDTO {
         @JsonUnwrapped
         MenuCommonRequestDTO.MenuCommonMainRequestDTO menuCommonMainRequestDTO;
+        @NotNull
+        Long quantity;
     }
 
     @Getter

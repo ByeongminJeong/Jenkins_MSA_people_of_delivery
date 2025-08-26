@@ -1,5 +1,6 @@
 package com.example.cloudfour.userservice.domain.user.converter;
 
+import com.example.cloudfour.userservice.domain.user.dto.UserAddressResponseDTO;
 import com.example.cloudfour.userservice.domain.user.dto.UserResponseDTO;
 import com.example.cloudfour.userservice.domain.user.entity.User;
 import com.example.cloudfour.userservice.domain.user.entity.UserAddress;
@@ -42,6 +43,12 @@ public class UserConverter {
         ua.setUser(user);
         ua.setRegion(region);
         return ua;
+    }
+
+    public static UserAddressResponseDTO toFindAddress(UserAddress address){
+        return UserAddressResponseDTO.builder()
+                .address(address.getAddress())
+                .build();
     }
 }
 

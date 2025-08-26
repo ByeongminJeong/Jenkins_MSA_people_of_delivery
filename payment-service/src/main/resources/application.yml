@@ -1,0 +1,37 @@
+server:
+  port: 8016
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    enabled: true
+    register-with-eureka: true
+    fetch-registry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+spring:
+  application:
+    name: payment-service
+
+  jpa:
+    hibernate.ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        highlight_sql: true
+
+  datasource:
+    url: ${LOCAL_DB_URL}
+    driver-class-name: org.postgresql.Driver
+    username: ${LOCAL_DB_USERNAME}
+    password: ${LOCAL_DB_PASSWORD}
+  cloud:
+    config:
+      enabled: false
+
+toss:
+  secret-key: ${TOSS_SECRET_KEY}
+  webhook-secret: ${TOSS_WEBHOOK_SECRET:webhook_secret_key}

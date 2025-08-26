@@ -11,9 +11,6 @@ public class MenuOptionResponseDTO {
     private UUID menuOptionId;
     private UUID menuId;
     private String menuName;
-    private String storeName;
     private String optionName;
     private Integer additionalPrice;
-    private java.time.LocalDateTime createdAt;
-    private java.time.LocalDateTime updatedAt;
 }

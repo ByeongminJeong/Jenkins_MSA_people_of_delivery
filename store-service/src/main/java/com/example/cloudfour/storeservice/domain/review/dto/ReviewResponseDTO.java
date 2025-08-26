@@ -76,17 +76,4 @@ public class ReviewResponseDTO {
         ReviewCommonResponseDTO.ReviewCommonGetResponseDTO reviewCommonGetResponseDTO;
         LocalDateTime createdAt;
     }
-
-    @Getter
-    @Builder
-    public static class testResponseDTO{
-        UUID reviewId;
-        UUID userId;
-        UUID storeId;
-        String userName;
-        Float score;
-        String content;
-        String pictureUrl;
-        LocalDateTime createdAt;
-    }
 }

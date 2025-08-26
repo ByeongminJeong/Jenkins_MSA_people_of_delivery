@@ -1,6 +1,7 @@
 package com.example.cloudfour.storeservice.domain.menu.converter;
 
 import com.example.cloudfour.storeservice.domain.collection.document.StoreDocument;
+import com.example.cloudfour.storeservice.domain.commondto.MenuCartResponseDTO;
 import com.example.cloudfour.storeservice.domain.menu.controller.MenuCommonResponseDTO;
 import com.example.cloudfour.storeservice.domain.menu.dto.MenuRequestDTO;
 import com.example.cloudfour.storeservice.domain.menu.dto.MenuResponseDTO;
@@ -23,6 +24,7 @@ public class MenuConverter {
     public static MenuResponseDTO.MenuDetailResponseDTO toMenuDetail1ResponseDTO(Menu menu) {
         return MenuResponseDTO.MenuDetailResponseDTO.builder()
                 .menuCommonResponseDTO(toMenuCommonResponseDTO(menu))
+                .quantity(menu.getStock().getQuantity())
                 .content(menu.getContent())
                 .createdAt(menu.getCreatedAt())
                 .updatedAt(menu.getUpdatedAt())
@@ -33,6 +35,7 @@ public class MenuConverter {
             StoreDocument.Menu menu, List<MenuResponseDTO.MenuOptionDTO> options) {
         return MenuResponseDTO.MenuDetailResponseDTO.builder()
                 .menuCommonResponseDTO(documentToMenuCommonResponseDTO(menu))
+                .quantity(menu.getStock().getQuantity())
                 .content(menu.getContent())
                 .createdAt(menu.getCreatedAt())
                 .menuOptions(options)
@@ -103,7 +106,16 @@ public class MenuConverter {
                 .price(menu.getPrice())
                 .menuPicture(menu.getMenuPicture())
                 .status(menu.getMenuStatus())
-                .category(menu.getMenuCategory())
+                .category(menu.getMenuCategory().getMenuCategoryName())
                 .build();
     }
+
+    public static MenuCartResponseDTO toFindMenuDTO(Menu menu){
+        return MenuCartResponseDTO.builder()
+                .menuId(menu.getId())
+                .price(menu.getPrice())
+                .build();
+    }
+
+
 }

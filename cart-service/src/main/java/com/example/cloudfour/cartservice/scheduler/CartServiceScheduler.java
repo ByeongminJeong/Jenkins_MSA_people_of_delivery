@@ -1,6 +1,6 @@
 package com.example.cloudfour.cartservice.scheduler;
 
-import com.example.cloudfour.cartservice.order.repository.OrderRepository;
+import com.example.cloudfour.cartservice.domain.order.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

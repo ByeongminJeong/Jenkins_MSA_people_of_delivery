@@ -23,7 +23,6 @@ public class StoreDocument {
     private String id;
 
     private UUID storeId;
-    private UUID storeCategoryId;
     private UUID userId;
 
     private String name;
@@ -37,37 +36,36 @@ public class StoreDocument {
     private Integer reviewCount;
     private String OperationHours;
     private String closedDays;
-    private String storeCategory;
     private String siDo;
     private String siGunGu;
     private String eupMyeonDong;
     private String pictureURL;
 
     private LocalDateTime createdAt;
+    private StoreDocument.StoreCategory storeCategory;
     private List<StoreDocument.Menu> menus;
     private List<StoreDocument.Review> reviews;
 
     @Getter
     @Builder
-    public static class Menu {
+    public static class StoreCategory{
         private UUID id;
-        private UUID menuCategoryId;
-        private String name;
-        private String content;
-        private Integer price;
-        private String menuPicture;
-        private String menuCategory;
-        private MenuStatus menuStatus;
-        private List<StoreDocument.MenuOption> menuOptions;
-        private LocalDateTime createdAt;
+        private String storeCategoryName;
     }
 
     @Getter
     @Builder
-    public static class Review {
+    public static class Menu {
         private UUID id;
-        private Double score;
+        private String name;
         private String content;
+        private Integer price;
+        private String menuPicture;
+        private MenuStatus menuStatus;
+        private StoreDocument.Stock stock;
+        private StoreDocument.MenuCategory menuCategory;
+        private List<StoreDocument.MenuOption> menuOptions;
+        private LocalDateTime createdAt;
     }
 
     @Getter
@@ -76,5 +74,27 @@ public class StoreDocument {
         private UUID id;
         private Integer additionalPrice;
         private String optionName;
+    }
+
+    @Getter
+    @Builder
+    public static class MenuCategory{
+        private UUID id;
+        private String menuCategoryName;
+    }
+
+    @Getter
+    @Builder
+    public static class Review {
+        private UUID id;
+        private Float score;
+        private String content;
+    }
+
+    @Getter
+    @Builder
+    public static class Stock{
+        private UUID id;
+        private Long quantity;
     }
 }

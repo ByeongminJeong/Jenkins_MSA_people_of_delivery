@@ -1,6 +1,8 @@
 package com.example.cloudfour.storeservice.domain.menu.controller;
 
 import com.example.cloudfour.modulecommon.apiPayLoad.CustomResponse;
+import com.example.cloudfour.storeservice.domain.commondto.MenuCartResponseDTO;
+import com.example.cloudfour.storeservice.domain.commondto.MenuOptionCartResponseDTO;
 import com.example.cloudfour.storeservice.domain.menu.converter.MenuConverter;
 import com.example.cloudfour.storeservice.domain.menu.converter.MenuOptionConverter;
 import com.example.cloudfour.storeservice.domain.menu.dto.MenuOptionResponseDTO;
@@ -13,11 +15,14 @@ import com.example.cloudfour.storeservice.domain.menu.exception.MenuOptionErrorC
 import com.example.cloudfour.storeservice.domain.menu.exception.MenuOptionException;
 import com.example.cloudfour.storeservice.domain.menu.repository.MenuOptionRepository;
 import com.example.cloudfour.storeservice.domain.menu.repository.MenuRepository;
+import com.example.cloudfour.storeservice.domain.menu.service.query.MenuQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -27,27 +32,29 @@ import java.util.UUID;
 @RequestMapping("/internal/menus")
 public class InternalMenuController {
     private final MenuRepository menuQuery;
-    private final MenuOptionRepository menuOptionQuery;
+    private final MenuQueryService query;
 
-    @GetMapping("/{menuId}")
-    public CustomResponse<MenuResponseDTO.MenuDetailResponseDTO> getMenuDetail(
-            @PathVariable("menuId") UUID menuId) {
+    @RequestMapping(value = "/exists", method = RequestMethod.HEAD)
+    public CustomResponse<Boolean> existsByMenuId(@RequestParam UUID menuId) {
+        boolean exists = menuQuery.existsById(menuId);
 
-        Menu findMenu = menuQuery.findById(menuId).orElseThrow(()->new MenuException(MenuErrorCode.NOT_FOUND));
-        MenuResponseDTO.MenuDetailResponseDTO result  = MenuConverter.toMenuDetail1ResponseDTO(findMenu);
-        return CustomResponse.onSuccess(HttpStatus.OK, result);
+        if (exists) {
+            return CustomResponse.onSuccess(HttpStatus.OK, true);
+        } else {
+            return CustomResponse.onSuccess(HttpStatus.NOT_FOUND, false);
+        }
     }
 
-    @GetMapping("/{optionId}")
-    public CustomResponse<MenuOptionResponseDTO.MenuOptionDetailResponseDTO> getMenuOptionDetail(
+    @GetMapping("/{menuId}")
+    public MenuCartResponseDTO getMenuDetail(
+            @PathVariable("menuId") UUID menuId) {
+        return query.findMenu(menuId);
+    }
+
+    @GetMapping("/options/{optionId}/detail")
+    public MenuOptionCartResponseDTO getMenuOptionDetail(
             @PathVariable("optionId") UUID optionId
     ) {
-
-        MenuOption findMenuOption = menuOptionQuery.findById(optionId).orElseThrow(
-                ()-> new MenuOptionException(MenuOptionErrorCode.NOT_FOUND)
-        );
-        MenuOptionResponseDTO.MenuOptionDetailResponseDTO result =
-                MenuOptionConverter.toMenuOptionDetailResponseDTO(findMenuOption);
-        return CustomResponse.onSuccess(HttpStatus.OK, result);
+        return query.findMenuOption(optionId);
     }
 }

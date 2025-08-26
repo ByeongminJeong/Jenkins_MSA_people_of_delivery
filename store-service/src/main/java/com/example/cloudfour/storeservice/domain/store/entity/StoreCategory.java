@@ -1,10 +1,13 @@
 package com.example.cloudfour.storeservice.domain.store.entity;
 
+import com.example.cloudfour.storeservice.domain.common.enums.SyncStatus;
 import com.example.cloudfour.storeservice.domain.store.exception.StoreCategoryErrorCode;
 import com.example.cloudfour.storeservice.domain.store.exception.StoreCategoryException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
@@ -34,9 +37,14 @@ public class StoreCategory {
     @Column(nullable = false, unique = true,length = 255)
     private String category;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "syncStatus", nullable = false)
+    @Builder.Default
+    private SyncStatus syncStatus = SyncStatus.CREATED_PENDING;
+
     @OneToMany(mappedBy = "storeCategory", cascade = CascadeType.ALL)
     @Builder.Default
-    private List<com.example.cloudfour.storeservice.domain.store.entity.Store> stores = new ArrayList<>();
+    private List<Store> stores = new ArrayList<>();
 
     public static class StoreCategoryBuilder {
         private StoreCategoryBuilder id(UUID id){
