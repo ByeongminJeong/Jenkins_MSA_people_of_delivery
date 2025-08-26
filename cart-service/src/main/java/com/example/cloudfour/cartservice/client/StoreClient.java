@@ -23,7 +23,8 @@ public class StoreClient {
     
     private final RestTemplate rt;
 
-    private static final String BASE = "http://store-service/internal";
+    //private static final String BASE = "http://store-service/internal";
+    private static final String BASE = "http://internal-alb-internal-902295756.ap-northeast-2.elb.amazonaws.com/internal";
 
     @Retryable(value = {Exception.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public Boolean existStore(UUID storeId) {

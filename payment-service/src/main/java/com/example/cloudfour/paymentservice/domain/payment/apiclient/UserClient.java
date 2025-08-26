@@ -17,7 +17,8 @@ public class UserClient {
     
     private final RestTemplate restTemplate;
     
-    private static final String USER_SERVICE_URL = "http://user-service";
+    //private static final String USER_SERVICE_URL = "http://user-service";
+    private static final String USER_SERVICE_URL = "http://internal-alb-internal-902295756.ap-northeast-2.elb.amazonaws.com";
 
     public boolean existsUser(UUID userId) {
         try {

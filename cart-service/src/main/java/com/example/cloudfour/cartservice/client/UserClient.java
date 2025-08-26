@@ -19,7 +19,8 @@ import java.util.UUID;
 public class UserClient {
     private final RestTemplate rt;
 
-    private static final String BASE = "http://user-service/internal/users";
+    //private static final String BASE = "http://user-service/internal/users";
+    private static final String BASE = "http://internal-alb-internal-902295756.ap-northeast-2.elb.amazonaws.com/internal/users";
 
     @Cacheable(value = "userAddresses", key = "#userId")
     @Retryable(value = {Exception.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))

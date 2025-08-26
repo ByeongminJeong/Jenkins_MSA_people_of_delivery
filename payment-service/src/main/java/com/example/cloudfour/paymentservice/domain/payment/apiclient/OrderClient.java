@@ -19,7 +19,8 @@ public class OrderClient {
 
     private final RestTemplate restTemplate;
 
-    private static final String BASE = "http://cart-service/internal";
+    //private static final String BASE = "http://cart-service/internal";
+    private static final String BASE = "http://internal-alb-internal-902295756.ap-northeast-2.elb.amazonaws.com/internal";
 
     public OrderResponseDTO getOrderById(String orderId, UUID userId) {
         try {

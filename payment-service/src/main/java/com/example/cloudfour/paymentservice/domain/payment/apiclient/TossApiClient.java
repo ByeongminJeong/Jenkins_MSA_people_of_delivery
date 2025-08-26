@@ -23,6 +23,7 @@ public class TossApiClient {
 
     private static final String BASE = "https://api.tosspayments.com";
 
+
     public TossApproveResponse approvePayment(String paymentKey, String orderId, Integer amount, String idempotencyKey) {
         String url = BASE + "/v1/payments/" + paymentKey;
         

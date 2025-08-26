@@ -17,7 +17,8 @@ public class StoreClient {
     
     private final RestTemplate restTemplate;
     
-    private static final String STORE_SERVICE_URL = "http://store-service";
+    //private static final String STORE_SERVICE_URL = "http://store-service";
+    private static final String STORE_SERVICE_URL = "http://internal-alb-internal-902295756.ap-northeast-2.elb.amazonaws.com";
 
     public boolean existsStore(UUID storeId) {
         try {
