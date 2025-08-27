@@ -34,7 +34,7 @@
         { "name": "DB_URL", "value": "<DB_URL>" },
         { "name": "DB_USERNAME", "value": "<DB_USERNAME>" },
         { "name": "DB_PASSWORD", "value": "<DB_PASSWORD>" },
-        { "name": "REDIS_HOST", "value": "redis.peopleofdelivery" },
+        { "name": "REDIS_HOST", "value": "redis-server.peopleofdelivery" },
         { "name": "REDIS_PORT", "value": "6379" },
         { "name": "GOOGLE_CLIENT_ID", "value": "<GOOGLE_CLIENT_ID>" },
         { "name": "GOOGLE_CLIENT_SECRET_ID", "value": "<GOOGLE_CLIENT_SECRET_ID>" },
