@@ -33,7 +33,8 @@
         { "name": "SPRING_PROFILES_ACTIVE", "value": "prod" },
         { "name": "DB_URL", "value": "<DB_URL>" },
         { "name": "DB_USERNAME", "value": "<DB_USERNAME>" },
-        { "name": "DB_PASSWORD", "value": "<DB_PASSWORD>" }
+        { "name": "DB_PASSWORD", "value": "<DB_PASSWORD>" },
+        { "name": "MONGO_URI", "value": "<MONGO_URI>" }
       ]
     }
   ]
