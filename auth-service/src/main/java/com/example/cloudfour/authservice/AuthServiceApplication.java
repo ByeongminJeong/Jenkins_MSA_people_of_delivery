@@ -5,13 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 //import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
-@SpringBootApplication(
-        scanBasePackages = "com.example.cloudfour.authservice",
-        exclude = {
-                org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration.class,
-                org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration.class
-        }
-)
+@SpringBootApplication(scanBasePackages = "com.example.cloudfour")
 //@EnableDiscoveryClient
 @EnableJpaAuditing
 public class AuthServiceApplication {
