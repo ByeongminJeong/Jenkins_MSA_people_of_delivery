@@ -34,8 +34,19 @@ public class UserClient {
         return rt.postForObject(BASE, req, UserResponseDTO.UserBriefResponseDTO.class);
     }
 
+//    public UserResponseDTO.UserBriefResponseDTO byEmail(String email) {
+//        return rt.getForObject(BASE + "/by-email?email={email}", UserResponseDTO.UserBriefResponseDTO.class, email);
+//    }
+
     public UserResponseDTO.UserBriefResponseDTO byEmail(String email) {
-        return rt.getForObject(BASE + "/by-email?email={email}", UserResponseDTO.UserBriefResponseDTO.class, email);
+        Map<String, Object> params = new HashMap<>();
+        params.put("email", email);
+
+        return rt.getForObject(
+                BASE + "/by-email?email={email}",
+                UserResponseDTO.UserBriefResponseDTO.class,
+                params
+        );
     }
 
     public UserResponseDTO.UserBriefResponseDTO byId(UUID id) {
