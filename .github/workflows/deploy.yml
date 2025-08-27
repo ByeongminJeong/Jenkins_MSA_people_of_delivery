@@ -171,11 +171,11 @@ jobs:
 
           aws ecs register-task-definition --cli-input-json file://new-taskdef.json
 
-#      # ECS 서비스 업데이트 (Blue/Green 배포 트리거)
-#      - name: Update ECS service
-#        run: |
-#          aws ecs update-service \
-#            --cluster cloudfour \
-#            --service ${{ matrix.name }}-task-service-blue_green \
-#            --task-definition ${{ matrix.name }}-task \
-#            --force-new-deployment
+      # ECS 서비스 업데이트 (Blue/Green 배포 트리거)
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster cloudfour \
+            --service ${{ matrix.name }}-task-service-blue_green \
+            --task-definition ${{ matrix.name }}-task \
+            --force-new-deployment
