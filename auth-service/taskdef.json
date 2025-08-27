@@ -40,8 +40,7 @@
         { "name": "GOOGLE_CLIENT_SECRET_ID", "value": "<GOOGLE_CLIENT_SECRET_ID>" },
         { "name": "MAIL_USERNAME", "value": "<MAIL_USERNAME>" },
         { "name": "MAIL_PASSWORD", "value": "<MAIL_PASSWORD>" },
-        { "name": "AUTH_EMAIL_PEPPER", "value": "default-pepper" },
-        { "name": "MONGO_URI", "value": "<MONGO_URI>" }
+        { "name": "AUTH_EMAIL_PEPPER", "value": "default-pepper" }
       ]
     }
   ]
