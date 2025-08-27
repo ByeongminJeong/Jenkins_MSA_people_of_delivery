@@ -1,15 +1,15 @@
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /app
 
-COPY gradlew ./
+COPY gradlew ./gradlew
 COPY gradle ./gradle
 COPY build.gradle settings.gradle ./
-COPY */build.gradle ./
-COPY . .
+COPY module-common/ ./module-common
+COPY user-service/ ./user-service
 
 RUN ./gradlew :user-service:bootJar --no-daemon --build-cache
 
-# 2단계: 실행
+# 실행 단계
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/user-service/build/libs/*.jar app.jar
