@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = "com.example.cloudfour")
+@SpringBootApplication(scanBasePackages = "com.example.cloudfour.storeservice")
 @EnableJpaAuditing
 //@EnableDiscoveryClient
 @EnableScheduling
