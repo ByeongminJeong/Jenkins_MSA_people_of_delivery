@@ -9,14 +9,14 @@ management:
         include: health,info,prometheus
   endpoint:
     health:
-      show-details: always     # 상세 정보 표시
+      show-details: always
+    prometheus:
+      enabled: true
   health:
     db:
       enabled: false           # DB 체크 비활성화
     redis:
       enabled: false
-    prometheus:
-      enabled: true
 
 spring:
   application:
