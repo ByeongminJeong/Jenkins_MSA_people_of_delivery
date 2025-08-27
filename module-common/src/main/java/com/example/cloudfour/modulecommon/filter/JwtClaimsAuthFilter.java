@@ -27,7 +27,7 @@ public class JwtClaimsAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        if (path.contains("/internal/")) {
+        if (path.contains("/internal/") || path.startsWith("/actuator/")) {
             chain.doFilter(request, response);
             return;
         }
