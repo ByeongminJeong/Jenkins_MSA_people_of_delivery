@@ -32,13 +32,18 @@ spring:
     mongodb:
       uri: ${MONGO_URI}
 
-
   datasource:
     url: ${DB_URL}
     driver-class-name: org.postgresql.Driver
-    #    driver-class-name: org.h2.Driver # 테스트용
+    # driver-class-name: org.h2.Driver # 테스트용
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+
   cloud:
     config:
       enabled: false
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
