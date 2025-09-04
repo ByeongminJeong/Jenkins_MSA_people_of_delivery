@@ -1,0 +1,172 @@
+version: '3.8'
+
+services:
+  # Discovery Service (Eureka)
+  discovery:
+    build:
+      context: .
+      dockerfile: discovery/Dockerfile
+    ports:
+      - "8761:8761"
+    networks:
+      - msa-network
+
+  # API Gateway
+  apigateway:
+    build:
+      context: .
+      dockerfile: apigateway/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - discovery
+    networks:
+      - msa-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    ports:
+      - "8015:8015"
+    depends_on:
+      - postgres-auth
+      - redis
+      - discovery
+    networks:
+      - msa-network
+
+  # User Service
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    ports:
+      - "8014:8014"
+    depends_on:
+      - postgres-user
+      - redis
+      - discovery
+    networks:
+      - msa-network
+
+  # Cart Service
+  cart-service:
+    build:
+      context: .
+      dockerfile: cart-service/Dockerfile
+    ports:
+      - "8012:8012"
+    depends_on:
+      - postgres-cart
+      - discovery
+    networks:
+      - msa-network
+
+  # Store Service
+  store-service:
+    build:
+      context: .
+      dockerfile: store-service/Dockerfile
+    ports:
+      - "8013:8013"
+    depends_on:
+      - postgres-store
+      - discovery
+    networks:
+      - msa-network
+
+  # Payment Service
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    ports:
+      - "8017:8017"
+    depends_on:
+      - discovery
+    networks:
+      - msa-network
+
+  # AI Service
+  ai-service:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    ports:
+      - "8016:8016"
+    depends_on:
+      - discovery
+    networks:
+      - msa-network
+
+  # Databases
+  postgres-auth:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5440:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - msa-network
+
+  postgres-user:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_user_data:/var/lib/postgresql/data
+    networks:
+      - msa-network
+
+  postgres-cart:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: cartdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_cart_data:/var/lib/postgresql/data
+    networks:
+      - msa-network
+
+  postgres-store:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: storedb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_store_data:/var/lib/postgresql/data
+    networks:
+      - msa-network
+
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - msa-network
+
+volumes:
+  postgres_auth_data:
+  postgres_user_data:
+  postgres_cart_data:
+  postgres_store_data:
+
+networks:
+  msa-network:
+    driver: bridge
