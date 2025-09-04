@@ -60,64 +60,52 @@ pipeline {
         
         stage('Build Docker Images') {
             parallel {
-                stage('Core Services') {
-                    parallel {
-                        stage('Discovery Service') {
-                            steps {
-                                echo '🔨 Building Discovery Service...'
-                                sh "docker build -t people-delivery/discovery:${IMAGE_TAG} -f discovery/Dockerfile . --no-cache=false"
-                            }
-                        }
-                        stage('API Gateway') {
-                            steps {
-                                echo '🔨 Building API Gateway...'
-                                sh "docker build -t people-delivery/apigateway:${IMAGE_TAG} -f apigateway/Dockerfile . --no-cache=false"
-                            }
-                        }
+                stage('Discovery Service') {
+                    steps {
+                        echo '🔨 Building Discovery Service...'
+                        sh "docker build -t people-delivery/discovery:${IMAGE_TAG} -f discovery/Dockerfile . --no-cache=false"
                     }
                 }
-                stage('Business Services') {
-                    parallel {
-                        stage('Auth Service') {
-                            steps {
-                                echo '🔨 Building Auth Service...'
-                                sh "docker build -t people-delivery/auth-service:${IMAGE_TAG} -f auth-service/Dockerfile . --no-cache=false"
-                            }
-                        }
-                        stage('User Service') {
-                            steps {
-                                echo '🔨 Building User Service...'
-                                sh "docker build -t people-delivery/user-service:${IMAGE_TAG} -f user-service/Dockerfile . --no-cache=false"
-                            }
-                        }
-                        stage('Store Service') {
-                            steps {
-                                echo '🔨 Building Store Service...'
-                                sh "docker build -t people-delivery/store-service:${IMAGE_TAG} -f store-service/Dockerfile . --no-cache=false"
-                            }
-                        }
+                stage('API Gateway') {
+                    steps {
+                        echo '🔨 Building API Gateway...'
+                        sh "docker build -t people-delivery/apigateway:${IMAGE_TAG} -f apigateway/Dockerfile . --no-cache=false"
                     }
                 }
-                stage('Support Services') {
-                    parallel {
-                        stage('Cart Service') {
-                            steps {
-                                echo '🔨 Building Cart Service...'
-                                sh "docker build -t people-delivery/cart-service:${IMAGE_TAG} -f cart-service/Dockerfile . --no-cache=false"
-                            }
-                        }
-                        stage('Payment Service') {
-                            steps {
-                                echo '🔨 Building Payment Service...'
-                                sh "docker build -t people-delivery/payment-service:${IMAGE_TAG} -f payment-service/Dockerfile . --no-cache=false"
-                            }
-                        }
-                        stage('AI Service') {
-                            steps {
-                                echo '🔨 Building AI Service...'
-                                sh "docker build -t people-delivery/ai-service:${IMAGE_TAG} -f ai-service/Dockerfile . --no-cache=false"
-                            }
-                        }
+                stage('Auth Service') {
+                    steps {
+                        echo '🔨 Building Auth Service...'
+                        sh "docker build -t people-delivery/auth-service:${IMAGE_TAG} -f auth-service/Dockerfile . --no-cache=false"
+                    }
+                }
+                stage('User Service') {
+                    steps {
+                        echo '🔨 Building User Service...'
+                        sh "docker build -t people-delivery/user-service:${IMAGE_TAG} -f user-service/Dockerfile . --no-cache=false"
+                    }
+                }
+                stage('Store Service') {
+                    steps {
+                        echo '🔨 Building Store Service...'
+                        sh "docker build -t people-delivery/store-service:${IMAGE_TAG} -f store-service/Dockerfile . --no-cache=false"
+                    }
+                }
+                stage('Cart Service') {
+                    steps {
+                        echo '🔨 Building Cart Service...'
+                        sh "docker build -t people-delivery/cart-service:${IMAGE_TAG} -f cart-service/Dockerfile . --no-cache=false"
+                    }
+                }
+                stage('Payment Service') {
+                    steps {
+                        echo '🔨 Building Payment Service...'
+                        sh "docker build -t people-delivery/payment-service:${IMAGE_TAG} -f payment-service/Dockerfile . --no-cache=false"
+                    }
+                }
+                stage('AI Service') {
+                    steps {
+                        echo '🔨 Building AI Service...'
+                        sh "docker build -t people-delivery/ai-service:${IMAGE_TAG} -f ai-service/Dockerfile . --no-cache=false"
                     }
                 }
             }
