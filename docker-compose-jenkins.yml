@@ -15,10 +15,12 @@ services:
     user: root
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
+      - JAVA_OPTS=-Xmx2g -Xms1g -XX:+UseG1GC -Djava.awt.headless=true
     command: >
       bash -c "
         apt-get update &&
         apt-get install -y docker.io &&
+        service docker start &&
         usermod -aG docker jenkins &&
         /usr/local/bin/jenkins.sh
       "
