@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   jenkins:
     image: jenkins/jenkins:lts-jdk17
@@ -12,6 +10,24 @@ services:
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    command: >
+      sh -c "
+        echo '🔧 Installing Docker and AWS CLI...' &&
+        apt-get update &&
+        apt-get install -y docker.io curl unzip &&
+        curl -L 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip' &&
+        unzip -q awscliv2.zip &&
+        ./aws/install &&
+        rm -rf awscliv2.zip aws/ &&
+        chmod 666 /var/run/docker.sock 2>/dev/null || true &&
+        echo 'Installation complete!' &&
+        docker --version &&
+        aws --version &&
+        echo 'Starting Jenkins...' &&
+        /usr/local/bin/jenkins.sh
+      "
 
 volumes:
   jenkins_data:
