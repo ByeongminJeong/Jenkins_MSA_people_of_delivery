@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     options {
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 45, unit: 'MINUTES')  // 시간 증가
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '10'))
         skipStagesAfterUnstable()
@@ -20,6 +20,10 @@ pipeline {
         
         // ECR 리포지토리 접두사 (GitHub Actions와 동일)
         ECR_PREFIX = "peopleofdelivery"
+        
+        // Docker 빌드 최적화
+        DOCKER_BUILDKIT = "1"
+        COMPOSE_DOCKER_CLI_BUILD = "1"
     }
     
     stages {
@@ -34,9 +38,19 @@ pipeline {
                     echo "Image tag: ${IMAGE_TAG}"
                     echo "ECR Registry: ${ECR_REGISTRY}"
                     
+                    # 시스템 리소스 확인
+                    echo "=== System Resources ==="
+                    free -h
+                    df -h
+                    
                     # 필요한 도구 확인
                     docker --version
                     aws --version
+                    
+                    # 기존 Docker 프로세스 정리
+                    echo "=== Cleaning up existing Docker processes ==="
+                    docker ps -q | xargs -r docker kill || true
+                    docker system prune -f
                     
                     # 디렉토리 구조 확인
                     echo "=== Directory Structure ==="
@@ -81,17 +95,25 @@ pipeline {
                     # Java 버전 확인
                     java -version
                     
-                    # Gradle 빌드 실행 (테스트 제외)
+                    # 메모리 사용량 확인
+                    echo "=== Memory before Gradle build ==="
+                    free -h
+                    
+                    # Gradle 빌드 실행 (메모리 설정 최적화)
                     ./gradlew clean build \
                         -x test \
                         --no-daemon \
                         --stacktrace \
                         --build-cache \
-                        --parallel \
-                        -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
+                        --max-workers=2 \
+                        -Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=384m -XX:+UseG1GC"
                     
                     echo "=== Build Results ==="
                     find . -name "*.jar" -path "*/build/libs/*" | head -10
+                    
+                    # 메모리 사용량 확인
+                    echo "=== Memory after Gradle build ==="
+                    free -h
                 '''
                 
                 // JAR 파일 아카이브
@@ -99,7 +121,8 @@ pipeline {
             }
         }
         
-        stage('Build & Push Docker Images') {
+        // 병렬 빌드를 배치로 나누어 메모리 사용량 최적화
+        stage('Build & Push Docker Images - Batch 1') {
             parallel {
                 stage('Auth Service') {
                     when {
@@ -110,6 +133,14 @@ pipeline {
                     steps {
                         script {
                             buildAndPushToECR('auth-service')
+                        }
+                    }
+                    post {
+                        always {
+                            sh '''
+                                echo "Cleaning up auth-service build artifacts..."
+                                docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+                            '''
                         }
                     }
                 }
@@ -124,7 +155,20 @@ pipeline {
                             buildAndPushToECR('user-service')
                         }
                     }
+                    post {
+                        always {
+                            sh '''
+                                echo "Cleaning up user-service build artifacts..."
+                                docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX}/user-service | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+                            '''
+                        }
+                    }
                 }
+            }
+        }
+        
+        stage('Build & Push Docker Images - Batch 2') {
+            parallel {
                 stage('Store Service') {
                     when {
                         expression { 
@@ -134,6 +178,14 @@ pipeline {
                     steps {
                         script {
                             buildAndPushToECR('store-service')
+                        }
+                    }
+                    post {
+                        always {
+                            sh '''
+                                echo "Cleaning up store-service build artifacts..."
+                                docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX}/store-service | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+                            '''
                         }
                     }
                 }
@@ -148,18 +200,32 @@ pipeline {
                             buildAndPushToECR('cart-service')
                         }
                     }
+                    post {
+                        always {
+                            sh '''
+                                echo "Cleaning up cart-service build artifacts..."
+                                docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX}/cart-service | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+                            '''
+                        }
+                    }
                 }
-                stage('AI Service') {
-                    when {
-                        expression { 
-                            return fileExists('ai-service/Dockerfile')
-                        }
+            }
+        }
+        
+        stage('Build & Push Docker Images - Batch 3') {
+            steps {
+                script {
+                    if (fileExists('ai-service/Dockerfile')) {
+                        buildAndPushToECR('ai-service')
                     }
-                    steps {
-                        script {
-                            buildAndPushToECR('ai-service')
-                        }
-                    }
+                }
+            }
+            post {
+                always {
+                    sh '''
+                        echo "Cleaning up ai-service build artifacts..."
+                        docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX}/ai-service | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+                    '''
                 }
             }
         }
@@ -214,7 +280,15 @@ ECR 리포지토리: https://console.aws.amazon.com/ecr/repositories?region=${AW
             echo 'Pipeline failed!'
             sh '''
                 echo "=== Failure Diagnostics ==="
-                docker images | grep ${ECR_REGISTRY} || echo "No ECR images built locally"
+                echo "=== System Resources ==="
+                free -h
+                df -h
+                echo "=== Docker Images ==="
+                docker images | head -10
+                echo "=== Docker Processes ==="
+                docker ps -a | head -10
+                echo "=== Recent Docker Logs ==="
+                docker system events --since 10m --until 0s || true
                 
                 # 실패한 서비스 확인
                 for service in auth-service user-service store-service cart-service ai-service; do
@@ -228,15 +302,21 @@ ECR 리포지토리: https://console.aws.amazon.com/ecr/repositories?region=${AW
         
         always {
             sh '''
-                echo "Cleaning up local Docker images..."
-                docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX} | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || echo "No images to clean"
+                echo "Final cleanup..."
+                # 모든 ECR 관련 이미지 정리
+                docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX} | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || echo "No ECR images to clean"
+                # 시스템 정리
                 docker system prune -f
+                # 최종 리소스 확인
+                echo "=== Final System Resources ==="
+                free -h
+                df -h
             '''
         }
     }
 }
 
-// ECR 빌드 및 푸시 함수 (GitHub Actions 패턴 적용)
+// ECR 빌드 및 푸시 함수 (메모리 최적화 버전)
 def buildAndPushToECR(String serviceName) {
     echo "Building and pushing ${serviceName} to ECR..."
     
@@ -244,6 +324,10 @@ def buildAndPushToECR(String serviceName) {
     def dockerfilePath = "${serviceName}/Dockerfile"
     
     sh """
+        # 빌드 전 메모리 확인
+        echo "=== Memory before ${serviceName} build ==="
+        free -h
+        
         # Dockerfile 존재 확인
         if [ ! -f ${dockerfilePath} ]; then
             echo "Dockerfile not found at ${dockerfilePath}"
@@ -266,13 +350,19 @@ def buildAndPushToECR(String serviceName) {
                 --region ${AWS_REGION}
         }
         
-        # Docker 이미지 빌드 (GitHub Actions와 동일한 방식)
+        # Docker 이미지 빌드 (메모리 효율적인 방식)
         echo "Building Docker image..."
-        docker build \
+        DOCKER_BUILDKIT=1 docker build \
+            --memory=2g \
+            --memory-swap=2g \
             -t ${ecrRepo}:${IMAGE_TAG} \
             -t ${ecrRepo}:latest \
             -f ${dockerfilePath} \
             .
+        
+        # 빌드 후 메모리 확인
+        echo "=== Memory after ${serviceName} build ==="
+        free -h
         
         # ECR에 푸시
         echo "Pushing to ECR..."
@@ -285,5 +375,9 @@ def buildAndPushToECR(String serviceName) {
         
         # 이미지 정보 확인
         docker images ${ecrRepo} --format "table {{.Repository}}:{{.Tag}}\\t{{.Size}}\\t{{.CreatedAt}}"
+        
+        # 로컬 이미지 즉시 정리 (메모리 절약)
+        echo "Cleaning up local images for ${serviceName}..."
+        docker rmi ${ecrRepo}:${IMAGE_TAG} ${ecrRepo}:latest 2>/dev/null || true
     """
 }
