@@ -1,6 +1,6 @@
 services:
   jenkins:
-    image: jenkins/jenkins:lts-jdk17
+    image: jenkins/jenkins:lts-jdk21  # JDK 21 이미지로 변경
     container_name: jenkins
     restart: unless-stopped
     user: root
@@ -10,8 +10,10 @@ services:
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.aws:/root/.aws:ro
     environment:
       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+      - AWS_REGION=ap-northeast-2
     command: >
       sh -c "
         echo '🔧 Installing Docker and AWS CLI...' &&
@@ -25,6 +27,7 @@ services:
         echo 'Installation complete!' &&
         docker --version &&
         aws --version &&
+        java -version &&
         echo 'Starting Jenkins...' &&
         /usr/local/bin/jenkins.sh
       "
