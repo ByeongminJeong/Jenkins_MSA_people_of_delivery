@@ -10,7 +10,6 @@ pipeline {
         timeout(time: 45, unit: 'MINUTES') // 타임아웃 증가
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        ansiColor('xterm')
         skipStagesAfterUnstable()
     }
     
