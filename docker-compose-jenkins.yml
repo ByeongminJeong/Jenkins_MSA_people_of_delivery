@@ -2,63 +2,18 @@ version: '3.8'
 
 services:
   jenkins:
-    image: jenkins/jenkins:2.414.3-lts
+    build: 
+      context: .
+      dockerfile: Dockerfile.jenkins
     container_name: jenkins
     restart: unless-stopped
     ports:
       - "8081:8080"
       - "50000:50000"
     volumes:
-      - jenkins_home:/var/jenkins_home
+      - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-      - $PWD:/workspace
     user: root
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - JAVA_OPTS=-Xmx2g -Xms1g -XX:+UseG1GC -Djava.awt.headless=true -Djenkins.install.runSetupWizard=false -Dhudson.model.DownloadService.noSignatureCheck=true -Dhudson.util.HttpURLConnection.timeout=30000 -Djava.net.useSystemProxies=true
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    command: >
-      bash -c "
-        # Docker 설치
-        apt-get update &&
-        apt-get install -y docker.io curl wget &&
-        
-        # Jenkins 사용자 권한 설정
-        usermod -aG docker jenkins &&
-        chmod 666 /var/run/docker.sock &&
-        
-        # Jenkins 홈 디렉토리 생성 및 권한 설정
-        mkdir -p /var/jenkins_home &&
-        chown -R jenkins:jenkins /var/jenkins_home &&
-        
-        # 업데이트 사이트 설정 (한국 미러 사용)
-        mkdir -p /var/jenkins_home &&
-        cat > /var/jenkins_home/hudson.model.UpdateCenter.xml << 'EOF'
-        <?xml version='1.0' encoding='UTF-8'?>
-        <sites>
-          <site>
-            <id>default</id>
-            <url>https://updates.jenkins.io/update-center.json</url>
-          </site>
-        </sites>
-        EOF
-        
-        # Jenkins 네트워크 설정
-        cat > /var/jenkins_home/jenkins.model.JenkinsLocationConfiguration.xml << 'EOF'
-        <?xml version='1.0' encoding='UTF-8'?>
-        <jenkins.model.JenkinsLocationConfiguration>
-          <jenkinsUrl>http://localhost:8081/</jenkinsUrl>
-        </jenkins.model.JenkinsLocationConfiguration>
-        EOF
-        
-        # 권한 재설정
-        chown -R jenkins:jenkins /var/jenkins_home &&
-        
-        # Jenkins 시작
-        exec su jenkins -c '/usr/local/bin/jenkins.sh'
-      "
 
 volumes:
-  jenkins_home:
+  jenkins_data:
