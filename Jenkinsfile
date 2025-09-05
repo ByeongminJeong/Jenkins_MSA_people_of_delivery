@@ -99,14 +99,14 @@ pipeline {
                     echo "=== Memory before Gradle build ==="
                     free -h
                     
-                    # Gradle 빌드 실행 (메모리 설정 최적화)
+                    # Gradle 빌드 실행 (t3.medium 최적화)
                     ./gradlew clean build \
                         -x test \
                         --no-daemon \
                         --stacktrace \
                         --build-cache \
                         --max-workers=2 \
-                        -Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=384m -XX:+UseG1GC"
+                        -Dorg.gradle.jvmargs="-Xmx1024m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC"
                     
                     echo "=== Build Results ==="
                     find . -name "*.jar" -path "*/build/libs/*" | head -10
@@ -353,8 +353,8 @@ def buildAndPushToECR(String serviceName) {
         # Docker 이미지 빌드 (메모리 효율적인 방식)
         echo "Building Docker image..."
         DOCKER_BUILDKIT=1 docker build \
-            --memory=2g \
-            --memory-swap=2g \
+            --memory=1.5g \
+            --memory-swap=3g \
             -t ${ecrRepo}:${IMAGE_TAG} \
             -t ${ecrRepo}:latest \
             -f ${dockerfilePath} \
