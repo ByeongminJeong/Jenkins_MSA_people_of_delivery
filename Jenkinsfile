@@ -2,7 +2,7 @@ pipeline {
     agent any  // Docker agent 대신 any 사용
     
     options {
-        timeout(time: 45, unit: 'MINUTES')
+        timeout(time: 20, unit: 'MINUTES')
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '10'))
         skipStagesAfterUnstable()
@@ -23,19 +23,13 @@ pipeline {
         IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
         REGISTRY_PREFIX = "${env.REGISTRY_PREFIX ?: 'people-delivery'}"
         
-        // 서비스 포트들 (Discovery, API Gateway는 AWS에서 관리)
+        // 서비스 포트들 (테스트용: Auth, User만 사용)
         AUTH_PORT = "${env.AUTH_PORT ?: '8015'}"
         USER_PORT = "${env.USER_PORT ?: '8014'}"
-        STORE_PORT = "${env.STORE_PORT ?: '8013'}"
-        CART_PORT = "${env.CART_PORT ?: '8012'}"
-        PAYMENT_PORT = "${env.PAYMENT_PORT ?: '8017'}"
-        AI_PORT = "${env.AI_PORT ?: '8016'}"
         
-        // 데이터베이스 포트들
+        // 데이터베이스 포트들 (테스트용: Auth, User DB만 사용)
         POSTGRES_AUTH_PORT = "${env.POSTGRES_AUTH_PORT ?: '5440'}"
         POSTGRES_USER_PORT = "${env.POSTGRES_USER_PORT ?: '5436'}"
-        POSTGRES_STORE_PORT = "${env.POSTGRES_STORE_PORT ?: '5435'}"
-        POSTGRES_CART_PORT = "${env.POSTGRES_CART_PORT ?: '5434'}"
         REDIS_PORT = "${env.REDIS_PORT ?: '6379'}"
     }
     
@@ -123,34 +117,6 @@ pipeline {
                         }
                     }
                 }
-                stage('Store Service') {
-                    steps {
-                        script {
-                            buildDockerImage('store-service', 'store-service')
-                        }
-                    }
-                }
-                stage('Cart Service') {
-                    steps {
-                        script {
-                            buildDockerImage('cart-service', 'cart-service')
-                        }
-                    }
-                }
-                stage('Payment Service') {
-                    steps {
-                        script {
-                            buildDockerImage('payment-service', 'payment-service')
-                        }
-                    }
-                }
-                stage('AI Service') {
-                    steps {
-                        script {
-                            buildDockerImage('ai-service', 'ai-service')
-                        }
-                    }
-                }
             }
         }
         
@@ -188,15 +154,11 @@ pipeline {
                 def deploymentInfo = """
 🎉 배포 완료! Build #${BUILD_NUMBER}
 
-📊 서비스 상태 (Discovery, API Gateway는 AWS에서 관리):
+📊 서비스 상태 (테스트용: Auth, User만):
 • Auth Service: http://${SERVER_IP}:${AUTH_PORT}
 • User Service: http://${SERVER_IP}:${USER_PORT}
-• Store Service: http://${SERVER_IP}:${STORE_PORT}
-• Cart Service: http://${SERVER_IP}:${CART_PORT}
-• Payment Service: http://${SERVER_IP}:${PAYMENT_PORT}
-• AI Service: http://${SERVER_IP}:${AI_PORT}
 
-🔗 AWS에서 Discovery, API Gateway 관리 중
+🔗 테스트 완료 후 다른 서비스들 추가 예정
                 """
                 
                 echo deploymentInfo
@@ -288,16 +250,14 @@ def setupInfrastructure() {
             docker network create people-delivery-network 2>/dev/null || echo "Network already exists or creation failed"
             
             echo "💾 Creating volumes..."
-            # 데이터 볼륨 생성
+            # 데이터 볼륨 생성 (테스트용: Auth, User DB만)
             docker volume create people-delivery-postgres-auth-data 2>/dev/null || echo "Volume creation failed or exists"
             docker volume create people-delivery-postgres-user-data 2>/dev/null || echo "Volume creation failed or exists"
-            docker volume create people-delivery-postgres-store-data 2>/dev/null || echo "Volume creation failed or exists"
-            docker volume create people-delivery-postgres-cart-data 2>/dev/null || echo "Volume creation failed or exists"
             docker volume create people-delivery-redis-data 2>/dev/null || echo "Volume creation failed or exists"
             
             echo "🗃️ Starting database containers..."
             
-            # PostgreSQL 컨테이너들 시작
+            # PostgreSQL 컨테이너들 시작 (테스트용: Auth, User DB만)
             docker run -d \
                 --name people-delivery-postgres-auth \
                 --network people-delivery-network \
@@ -319,28 +279,6 @@ def setupInfrastructure() {
                 -v people-delivery-postgres-user-data:/var/lib/postgresql/data \
                 --restart=unless-stopped \
                 postgres:13 || echo "Failed to start user database"
-                
-            docker run -d \
-                --name people-delivery-postgres-store \
-                --network people-delivery-network \
-                -p ${POSTGRES_STORE_PORT}:5432 \
-                -e POSTGRES_DB=storedb \
-                -e POSTGRES_USER=${POSTGRES_USER} \
-                -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-                -v people-delivery-postgres-store-data:/var/lib/postgresql/data \
-                --restart=unless-stopped \
-                postgres:13 || echo "Failed to start store database"
-                
-            docker run -d \
-                --name people-delivery-postgres-cart \
-                --network people-delivery-network \
-                -p ${POSTGRES_CART_PORT}:5432 \
-                -e POSTGRES_DB=cartdb \
-                -e POSTGRES_USER=${POSTGRES_USER} \
-                -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-                -v people-delivery-postgres-cart-data:/var/lib/postgresql/data \
-                --restart=unless-stopped \
-                postgres:13 || echo "Failed to start cart database"
                 
             # Redis 시작
             docker run -d \
@@ -365,7 +303,7 @@ def setupInfrastructure() {
 def deployServices() {
     try {
         sh """
-            echo "🚀 Starting microservices..."
+            echo "🚀 Starting microservices (테스트용: Auth, User만)..."
             
             # 각 서비스를 순차적으로 시작
             docker run -d \
@@ -381,37 +319,9 @@ def deployServices() {
                 -p ${USER_PORT}:8014 \
                 --restart=unless-stopped \
                 ${REGISTRY_PREFIX}/user-service:${IMAGE_TAG} || echo "Failed to start user service"
-                
-            docker run -d \
-                --name people-delivery-store \
-                --network people-delivery-network \
-                -p ${STORE_PORT}:8013 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/store-service:${IMAGE_TAG} || echo "Failed to start store service"
-                
-            docker run -d \
-                --name people-delivery-cart \
-                --network people-delivery-network \
-                -p ${CART_PORT}:8012 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/cart-service:${IMAGE_TAG} || echo "Failed to start cart service"
-                
-            docker run -d \
-                --name people-delivery-payment \
-                --network people-delivery-network \
-                -p ${PAYMENT_PORT}:8017 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/payment-service:${IMAGE_TAG} || echo "Failed to start payment service"
-                
-            docker run -d \
-                --name people-delivery-ai \
-                --network people-delivery-network \
-                -p ${AI_PORT}:8016 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/ai-service:${IMAGE_TAG} || echo "Failed to start ai service"
             
             echo "⏳ Waiting for services to start..."
-            sleep 45
+            sleep 30
             
             echo "✅ All services started"
         """
@@ -424,15 +334,11 @@ def deployServices() {
 def performHealthChecks() {
     def services = [
         [name: 'Auth', port: env.AUTH_PORT],
-        [name: 'User', port: env.USER_PORT],
-        [name: 'Store', port: env.STORE_PORT],
-        [name: 'Cart', port: env.CART_PORT],
-        [name: 'Payment', port: env.PAYMENT_PORT],
-        [name: 'AI', port: env.AI_PORT]
+        [name: 'User', port: env.USER_PORT]
     ]
     
     echo "⏳ Waiting for services to be fully ready..."
-    sleep 60
+    sleep 30
     
     sh """
         echo "=== Container Status ==="
