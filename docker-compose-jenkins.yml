@@ -16,6 +16,8 @@ services:
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - JAVA_OPTS=-Xmx2g -Xms1g -XX:+UseG1GC -Djava.awt.headless=true
+      - JENKINS_UC_DOWNLOAD=https://mirrors.tuna.tsinghua.edu.cn/jenkins
+      - JENKINS_UC=https://mirrors.tuna.tsinghua.edu.cn/jenkins
     command: >
       bash -c "
         apt-get update &&
