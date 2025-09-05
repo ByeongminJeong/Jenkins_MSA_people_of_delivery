@@ -23,9 +23,7 @@ pipeline {
         IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
         REGISTRY_PREFIX = "${env.REGISTRY_PREFIX ?: 'people-delivery'}"
         
-        // 서비스 포트들
-        DISCOVERY_PORT = "${env.DISCOVERY_PORT ?: '8761'}"
-        GATEWAY_PORT = "${env.GATEWAY_PORT ?: '8080'}"
+        // 서비스 포트들 (Discovery, API Gateway는 AWS에서 관리)
         AUTH_PORT = "${env.AUTH_PORT ?: '8015'}"
         USER_PORT = "${env.USER_PORT ?: '8014'}"
         STORE_PORT = "${env.STORE_PORT ?: '8013'}"
@@ -111,20 +109,6 @@ pipeline {
         
         stage('Build Docker Images') {
             parallel {
-                stage('Discovery Service') {
-                    steps {
-                        script {
-                            buildDockerImage('discovery', 'discovery')
-                        }
-                    }
-                }
-                stage('API Gateway') {
-                    steps {
-                        script {
-                            buildDockerImage('apigateway', 'apigateway')
-                        }
-                    }
-                }
                 stage('Auth Service') {
                     steps {
                         script {
@@ -204,9 +188,7 @@ pipeline {
                 def deploymentInfo = """
 🎉 배포 완료! Build #${BUILD_NUMBER}
 
-📊 서비스 상태:
-• Discovery Service: http://${SERVER_IP}:${DISCOVERY_PORT}
-• API Gateway: http://${SERVER_IP}:${GATEWAY_PORT}
+📊 서비스 상태 (Discovery, API Gateway는 AWS에서 관리):
 • Auth Service: http://${SERVER_IP}:${AUTH_PORT}
 • User Service: http://${SERVER_IP}:${USER_PORT}
 • Store Service: http://${SERVER_IP}:${STORE_PORT}
@@ -214,7 +196,7 @@ pipeline {
 • Payment Service: http://${SERVER_IP}:${PAYMENT_PORT}
 • AI Service: http://${SERVER_IP}:${AI_PORT}
 
-🔗 Discovery Dashboard: http://${SERVER_IP}:${DISCOVERY_PORT}
+🔗 AWS에서 Discovery, API Gateway 관리 중
                 """
                 
                 echo deploymentInfo
@@ -383,17 +365,6 @@ def setupInfrastructure() {
 def deployServices() {
     try {
         sh """
-            echo "🚀 Starting Discovery Service..."
-            docker run -d \
-                --name people-delivery-discovery \
-                --network people-delivery-network \
-                -p ${DISCOVERY_PORT}:8761 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/discovery:${IMAGE_TAG} || echo "Failed to start discovery service"
-            
-            echo "⏳ Waiting for Discovery Service to be ready..."
-            sleep 60
-            
             echo "🚀 Starting microservices..."
             
             # 각 서비스를 순차적으로 시작
@@ -442,14 +413,6 @@ def deployServices() {
             echo "⏳ Waiting for services to start..."
             sleep 45
             
-            echo "🚀 Starting API Gateway..."
-            docker run -d \
-                --name people-delivery-apigateway \
-                --network people-delivery-network \
-                -p ${GATEWAY_PORT}:8080 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/apigateway:${IMAGE_TAG} || echo "Failed to start API gateway"
-            
             echo "✅ All services started"
         """
     } catch (Exception e) {
@@ -460,14 +423,12 @@ def deployServices() {
 
 def performHealthChecks() {
     def services = [
-        [name: 'Discovery', port: env.DISCOVERY_PORT],
         [name: 'Auth', port: env.AUTH_PORT],
         [name: 'User', port: env.USER_PORT],
         [name: 'Store', port: env.STORE_PORT],
         [name: 'Cart', port: env.CART_PORT],
         [name: 'Payment', port: env.PAYMENT_PORT],
-        [name: 'AI', port: env.AI_PORT],
-        [name: 'API Gateway', port: env.GATEWAY_PORT]
+        [name: 'AI', port: env.AI_PORT]
     ]
     
     echo "⏳ Waiting for services to be fully ready..."
