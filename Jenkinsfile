@@ -1,27 +1,24 @@
 pipeline {
-    agent any  // Docker agent 대신 any 사용
+    agent any
     
     options {
-        timeout(time: 20, unit: 'MINUTES')
+        timeout(time: 30, unit: 'MINUTES')
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '10'))
         skipStagesAfterUnstable()
     }
     
     environment {
-        // 서버 정보
-        SERVER_IP = "${env.SERVER_IP ?: 'localhost'}"
-        
-        // 데이터베이스 정보 (하드코딩으로 우선 해결)
-        POSTGRES_PASSWORD = "${env.POSTGRES_PASSWORD ?: 'password123'}"
-        POSTGRES_USER = "${env.POSTGRES_USER ?: 'postgres'}"
-        
-        // Redis 정보
-        REDIS_PASSWORD = "${env.REDIS_PASSWORD ?: ''}"
+        // AWS 설정
+        AWS_REGION = 'ap-northeast-2'
+        AWS_ACCOUNT_ID = '061039771693'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         
         // Docker 이미지 태그
-        IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
-        REGISTRY_PREFIX = "${env.REGISTRY_PREFIX ?: 'people-delivery'}"
+        IMAGE_TAG = "jenkins-${env.BUILD_NUMBER ?: 'latest'}"
+        
+        // ECR 리포지토리 접두사 (기존과 맞춤)
+        ECR_PREFIX = "peopleofdelivery"
         
         // 서비스 포트들 (테스트용: Auth, User만 사용)
         AUTH_PORT = "${env.AUTH_PORT ?: '8015'}"
@@ -31,6 +28,52 @@ pipeline {
         POSTGRES_AUTH_PORT = "${env.POSTGRES_AUTH_PORT ?: '5440'}"
         POSTGRES_USER_PORT = "${env.POSTGRES_USER_PORT ?: '5436'}"
         REDIS_PORT = "${env.REDIS_PORT ?: '6379'}"
+        
+        // 데이터베이스 정보 (Jenkins 환경 변수에서만 가져옴)
+        DB_URL = "${env.DB_URL}"
+        DB_USERNAME = "${env.DB_USERNAME}"
+        DB_PASSWORD = "${env.DB_PASSWORD}"
+        POSTGRES_PASSWORD = "${env.POSTGRES_PASSWORD}"
+        POSTGRES_USER = "${env.POSTGRES_USER}"
+        
+        // Redis 정보 (Jenkins 환경 변수에서만 가져옴)
+        REDIS_HOST = "${env.REDIS_HOST}"
+        REDIS_PASSWORD = "${env.REDIS_PASSWORD}"
+        
+        // JWT 설정 (Jenkins 환경 변수에서만 가져옴)
+        JWT_SECRET = "${env.JWT_SECRET}"
+        JWT_REFRESH_SECRET = "${env.JWT_REFRESH_SECRET}"
+        
+        // Google OAuth 설정 (Jenkins 환경 변수에서만 가져옴)
+        GOOGLE_CLIENT_ID = "${env.GOOGLE_CLIENT_ID}"
+        GOOGLE_CLIENT_SECRET_ID = "${env.GOOGLE_CLIENT_SECRET_ID}"
+        
+        // 이메일 설정 (Jenkins 환경 변수에서만 가져옴)
+        MAIL_USERNAME = "${env.MAIL_USERNAME}"
+        MAIL_PASSWORD = "${env.MAIL_PASSWORD}"
+        
+        // Toss 결제 설정 (Jenkins 환경 변수에서만 가져옴)
+        TOSS_CLIENT = "${env.TOSS_CLIENT}"
+        TOSS_SECRET = "${env.TOSS_SECRET}"
+        
+        // API 키들 (Jenkins 환경 변수에서만 가져옴)
+        GEMINI_API_KEY = "${env.GEMINI_API_KEY}"
+        WEATHER_API_KEY = "${env.WEATHER_API_KEY}"
+        
+        // MongoDB 설정 (Jenkins 환경 변수에서만 가져옴)
+        MONGO_URI = "${env.MONGO_URI}"
+        
+        // AWS Cognito 설정 (Jenkins 환경 변수에서만 가져옴)
+        COGNITO_USER_POOL_ID = "${env.COGNITO_USER_POOL_ID}"
+        COGNITO_CLIENT_ID = "${env.COGNITO_CLIENT_ID}"
+        
+        // Docker Hub 설정 (Jenkins 환경 변수에서만 가져옴)
+        DOCKERHUB_USERNAME = "${env.DOCKERHUB_USERNAME}"
+        DOCKERHUB_TOKEN = "${env.DOCKERHUB_TOKEN}"
+        
+        // EC2 설정 (Jenkins 환경 변수에서만 가져옴)
+        EC2_HOST = "${env.EC2_HOST}"
+        EC2_USERNAME = "${env.EC2_USERNAME}"
     }
     
     stages {
@@ -39,110 +82,121 @@ pipeline {
                 echo '🔄 Preparing environment...'
                 sh '''
                     echo "Current directory: $(pwd)"
-                    echo "Directory contents:"
+                    echo "Git commit: ${GIT_COMMIT}"
+                    echo "Build number: ${BUILD_NUMBER}"
+                    echo "Image tag: ${IMAGE_TAG}"
+                    echo "ECR Registry: ${ECR_REGISTRY}"
+                    
+                    # 필요한 도구 확인
+                    docker --version
+                    aws --version || echo "AWS CLI not found"
+                    
+                    # 디렉토리 구조 확인
                     ls -la
-                    echo "Docker version:"
-                    docker --version || echo "Docker not available"
-                    echo "Available networks:"
-                    docker network ls || echo "Cannot list networks"
                 '''
             }
         }
         
-        stage('Check Docker') {
+        stage('Configure AWS & ECR Login') {
             steps {
-                echo '🐳 Checking Docker availability...'
+                echo '🔐 Configuring AWS credentials and ECR login...'
                 script {
-                    try {
-                        sh 'docker ps'
-                        echo '✅ Docker is available'
-                    } catch (Exception e) {
-                        error "❌ Docker is not available: ${e.getMessage()}"
+                    withCredentials([
+                        [
+                            $class: 'AmazonWebServicesCredentialsBinding',
+                            credentialsId: 'aws-credentials',
+                            accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                            secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                        ]
+                    ]) {
+                        sh '''
+                            # AWS 설정 확인
+                            echo "AWS Account: $(aws sts get-caller-identity --query Account --output text)"
+                            
+                            # ECR 로그인
+                            echo "Logging in to ECR..."
+                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                            echo "✅ ECR login successful"
+                        '''
                     }
                 }
             }
         }
         
-        stage('Gradle Build & Test') {
+        stage('Gradle Build') {
             steps {
                 echo '🔨 Building with Gradle...'
-                script {
-                    try {
-                        sh '''
-                            # Gradle wrapper 실행 권한 부여
-                            chmod +x ./gradlew
-                            
-                            # Java 버전 체크
-                            java -version || echo "Java not found, trying with docker"
-                            
-                            # Gradle 빌드 실행
-                            ./gradlew clean build \
-                                -x test \
-                                --no-daemon \
-                                --stacktrace \
-                                --parallel \
-                                --build-cache \
-                                -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" || echo "Gradle build failed"
-                        '''
-                    } catch (Exception e) {
-                        echo "⚠️ Gradle build encountered issues: ${e.getMessage()}"
-                        // 빌드가 실패해도 계속 진행 (Docker 이미지는 미리 빌드된 JAR 사용)
-                    }
-                }
+                sh '''
+                    # Gradle wrapper 실행 권한 부여
+                    chmod +x ./gradlew
+                    
+                    # Java 버전 확인
+                    java -version
+                    
+                    # Gradle 빌드 실행 (테스트 제외)
+                    ./gradlew clean build \
+                        -x test \
+                        --no-daemon \
+                        --stacktrace \
+                        --build-cache \
+                        --parallel \
+                        -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
+                    
+                    echo "=== Build Results ==="
+                    find . -name "*.jar" -path "*/build/libs/*" | head -10
+                '''
                 
-                // 빌드된 JAR 파일들 아카이브 (실패해도 계속)
-                script {
-                    try {
-                        archiveArtifacts artifacts: '**/build/libs/*.jar', fingerprint: true, allowEmptyArchive: true
-                    } catch (Exception e) {
-                        echo "Warning: Could not archive artifacts - ${e.getMessage()}"
-                    }
-                }
+                // JAR 파일 아카이브
+                archiveArtifacts artifacts: '**/build/libs/*.jar', fingerprint: true, allowEmptyArchive: true
             }
         }
         
-        stage('Build Docker Images') {
+        stage('Build & Push Docker Images') {
             parallel {
                 stage('Auth Service') {
                     steps {
                         script {
-                            buildDockerImage('auth-service', 'auth-service')
+                            buildAndPushToECR('auth-service', 'auth-service')
                         }
                     }
                 }
                 stage('User Service') {
                     steps {
                         script {
-                            buildDockerImage('user-service', 'user-service')
+                            buildAndPushToECR('user-service', 'user-service')
                         }
                     }
                 }
             }
         }
         
-        stage('Infrastructure Setup') {
+        stage('Verify ECR Push') {
             steps {
-                echo '🏗️ Setting up infrastructure...'
+                echo '🔍 Verifying ECR push results...'
                 script {
-                    setupInfrastructure()
-                }
-            }
-        }
-        
-        stage('Deploy Services') {
-            steps {
-                echo '🚀 Deploying services...'
-                script {
-                    deployServices()
-                }
-            }
-        }
-        
-        stage('Health Check') {
-            steps {
-                echo '🔍 Performing health checks...'
-                script {
-                    performHealthChecks()
+                    withCredentials([
+                        [
+                            $class: 'AmazonWebServicesCredentialsBinding',
+                            credentialsId: 'aws-credentials',
+                            accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                            secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                        ]
+                    ]) {
+                        sh '''
+                            echo "=== ECR Push Verification ==="
+                            
+                            # 각 서비스의 최신 이미지 확인
+                            for service in auth-service user-service; do
+                                echo "Checking ${ECR_PREFIX}/${service}:${IMAGE_TAG}"
+                                aws ecr describe-images \
+                                    --repository-name ${ECR_PREFIX}/${service} \
+                                    --image-ids imageTag=${IMAGE_TAG} \
+                                    --region ${AWS_REGION} \
+                                    --query 'imageDetails[0].imagePushedAt' \
+                                    --output text 2>/dev/null || echo "❌ Image not found"
+                            done
+                        '''
+                    }
                 }
             }
         }
@@ -152,13 +206,18 @@ pipeline {
         success {
             script {
                 def deploymentInfo = """
-🎉 배포 완료! Build #${BUILD_NUMBER}
+🎉 ECR 푸시 완료! Build #${BUILD_NUMBER}
 
-📊 서비스 상태 (테스트용: Auth, User만):
-• Auth Service: http://${SERVER_IP}:${AUTH_PORT}
-• User Service: http://${SERVER_IP}:${USER_PORT}
+📦 업로드된 ECR 이미지들 (테스트용: Auth, User만):
+• Auth Service: ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}
+• User Service: ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}
 
-🔗 테스트 완료 후 다른 서비스들 추가 예정
+🚀 다음 단계: EKS에서 배포
+- kubectl set image 또는
+- ArgoCD/Flux GitOps 배포
+
+🔗 ECR 리포지토리 확인:
+https://console.aws.amazon.com/ecr/repositories?region=${AWS_REGION}
                 """
                 
                 echo deploymentInfo
@@ -166,209 +225,78 @@ pipeline {
         }
         
         failure {
-            script {
-                echo '💥 Pipeline failed!'
+            echo '💥 Pipeline failed!'
+            sh '''
+                echo "=== Failure Diagnostics ==="
+                docker images | grep ${ECR_REGISTRY} || echo "No ECR images built locally"
                 
-                // node 컨텍스트 안에서 sh 실행
-                try {
-                    sh '''
-                        echo "=== Docker Container Status ==="
-                        docker ps -a || echo "Could not list containers"
-                        
-                        echo "=== Docker Images ==="
-                        docker images || echo "Could not list images"
-                        
-                        echo "=== Failed Container Logs ==="
-                        for container in $(docker ps -a --filter "name=people-delivery" --format "{{.Names}}" 2>/dev/null || true); do
-                            if [ ! -z "$container" ]; then
-                                echo "=== Logs for $container ==="
-                                docker logs --tail=50 $container 2>/dev/null || echo "Could not get logs for $container"
-                            fi
-                        done
-                    '''
-                } catch (Exception e) {
-                    echo "Could not collect failure logs: ${e.getMessage()}"
-                }
-            }
+                # AWS 연결 확인
+                aws sts get-caller-identity || echo "AWS connection failed"
+            '''
         }
         
         always {
-            script {
-                // 정리 작업
-                try {
-                    sh '''
-                        echo "🧹 Cleaning up..."
-                        
-                        # 기본 정리만 수행
-                        docker system prune -f || echo "Could not prune system"
-                        
-                        echo "✅ Cleanup completed"
-                    '''
-                } catch (Exception e) {
-                    echo "Cleanup failed: ${e.getMessage()}"
-                }
-            }
+            sh '''
+                echo "🧹 Cleaning up local Docker images..."
+                # 로컬의 ECR 이미지들만 정리
+                docker images | grep ${ECR_REGISTRY}/${ECR_PREFIX} | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || echo "No images to clean"
+                docker system prune -f
+            '''
         }
     }
 }
 
-// 헬퍼 함수들
-def buildDockerImage(String serviceName, String dockerfilePath) {
-    echo "🔨 Building ${serviceName}..."
+// ECR 빌드 및 푸시 함수
+def buildAndPushToECR(String serviceName, String dockerfilePath) {
+    echo "🔨 Building and pushing ${serviceName} to ECR..."
     
-    try {
-        sh """
-            if [ -f ${dockerfilePath}/Dockerfile ]; then
-                echo "Found Dockerfile for ${serviceName}"
-                docker build \
-                    -t ${REGISTRY_PREFIX}/${serviceName}:${IMAGE_TAG} \
-                    -t ${REGISTRY_PREFIX}/${serviceName}:latest \
-                    -f ${dockerfilePath}/Dockerfile \
-                    . || echo "Failed to build ${serviceName}"
-                echo "✅ Successfully built ${serviceName}"
-            else
-                echo "❌ Dockerfile not found at ${dockerfilePath}/Dockerfile"
-                echo "Available files in ${dockerfilePath}:"
-                ls -la ${dockerfilePath}/ || echo "Directory not found"
-            fi
-        """
-    } catch (Exception e) {
-        echo "❌ Failed to build ${serviceName}: ${e.getMessage()}"
-    }
-}
-
-def setupInfrastructure() {
-    try {
-        sh """
-            echo "🧹 Cleaning up existing resources..."
-            # 기존 people-delivery 관련 컨테이너들 정리
-            docker ps -q --filter "name=people-delivery" | xargs -r docker stop 2>/dev/null || echo "No containers to stop"
-            docker ps -aq --filter "name=people-delivery" | xargs -r docker rm 2>/dev/null || echo "No containers to remove"
-            
-            echo "🌐 Setting up Docker network..."
-            # Docker 네트워크 생성
-            docker network create people-delivery-network 2>/dev/null || echo "Network already exists or creation failed"
-            
-            echo "💾 Creating volumes..."
-            # 데이터 볼륨 생성 (테스트용: Auth, User DB만)
-            docker volume create people-delivery-postgres-auth-data 2>/dev/null || echo "Volume creation failed or exists"
-            docker volume create people-delivery-postgres-user-data 2>/dev/null || echo "Volume creation failed or exists"
-            docker volume create people-delivery-redis-data 2>/dev/null || echo "Volume creation failed or exists"
-            
-            echo "🗃️ Starting database containers..."
-            
-            # PostgreSQL 컨테이너들 시작 (테스트용: Auth, User DB만)
-            docker run -d \
-                --name people-delivery-postgres-auth \
-                --network people-delivery-network \
-                -p ${POSTGRES_AUTH_PORT}:5432 \
-                -e POSTGRES_DB=authdb \
-                -e POSTGRES_USER=${POSTGRES_USER} \
-                -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-                -v people-delivery-postgres-auth-data:/var/lib/postgresql/data \
-                --restart=unless-stopped \
-                postgres:13 || echo "Failed to start auth database"
-                
-            docker run -d \
-                --name people-delivery-postgres-user \
-                --network people-delivery-network \
-                -p ${POSTGRES_USER_PORT}:5432 \
-                -e POSTGRES_DB=userdb \
-                -e POSTGRES_USER=${POSTGRES_USER} \
-                -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-                -v people-delivery-postgres-user-data:/var/lib/postgresql/data \
-                --restart=unless-stopped \
-                postgres:13 || echo "Failed to start user database"
-                
-            # Redis 시작
-            docker run -d \
-                --name people-delivery-redis \
-                --network people-delivery-network \
-                -p ${REDIS_PORT}:6379 \
-                -v people-delivery-redis-data:/data \
-                --restart=unless-stopped \
-                redis:6-alpine || echo "Failed to start Redis"
-            
-            echo "⏳ Waiting for databases to be ready..."
-            sleep 30
-            
-            echo "✅ Infrastructure setup completed"
-        """
-    } catch (Exception e) {
-        echo "❌ Infrastructure setup failed: ${e.getMessage()}"
-        throw e
-    }
-}
-
-def deployServices() {
-    try {
-        sh """
-            echo "🚀 Starting microservices (테스트용: Auth, User만)..."
-            
-            # 각 서비스를 순차적으로 시작
-            docker run -d \
-                --name people-delivery-auth \
-                --network people-delivery-network \
-                -p ${AUTH_PORT}:8015 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/auth-service:${IMAGE_TAG} || echo "Failed to start auth service"
-                
-            docker run -d \
-                --name people-delivery-user \
-                --network people-delivery-network \
-                -p ${USER_PORT}:8014 \
-                --restart=unless-stopped \
-                ${REGISTRY_PREFIX}/user-service:${IMAGE_TAG} || echo "Failed to start user service"
-            
-            echo "⏳ Waiting for services to start..."
-            sleep 30
-            
-            echo "✅ All services started"
-        """
-    } catch (Exception e) {
-        echo "❌ Service deployment failed: ${e.getMessage()}"
-        throw e
-    }
-}
-
-def performHealthChecks() {
-    def services = [
-        [name: 'Auth', port: env.AUTH_PORT],
-        [name: 'User', port: env.USER_PORT]
-    ]
-    
-    echo "⏳ Waiting for services to be fully ready..."
-    sleep 30
+    def ecrRepo = "${ECR_REGISTRY}/${ECR_PREFIX}/${serviceName}"
     
     sh """
-        echo "=== Container Status ==="
-        docker ps --filter "name=people-delivery" --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}" || echo "Could not get container status"
-        
-        echo ""
-        echo "=== Network Information ==="
-        docker network ls | grep people-delivery || echo "No people-delivery network found"
-        
-        echo ""
-        echo "=== Volume Information ==="
-        docker volume ls | grep people-delivery || echo "No people-delivery volumes found"
-        
-        echo ""
-        echo "=== Health Check Results ==="
+        if [ -f ${dockerfilePath}/Dockerfile ]; then
+            echo "✅ Found Dockerfile for ${serviceName}"
+            
+            # Docker 이미지 빌드 (환경 변수 포함)
+            echo "🔨 Building ${serviceName} with environment variables..."
+            docker build \
+                --build-arg DB_URL="${DB_URL}" \
+                --build-arg DB_USERNAME="${DB_USERNAME}" \
+                --build-arg DB_PASSWORD="${DB_PASSWORD}" \
+                --build-arg REDIS_HOST="${REDIS_HOST}" \
+                --build-arg REDIS_PORT="${REDIS_PORT}" \
+                --build-arg REDIS_PASSWORD="${REDIS_PASSWORD}" \
+                --build-arg JWT_SECRET="${JWT_SECRET}" \
+                --build-arg JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET}" \
+                --build-arg GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
+                --build-arg GOOGLE_CLIENT_SECRET_ID="${GOOGLE_CLIENT_SECRET_ID}" \
+                --build-arg MAIL_USERNAME="${MAIL_USERNAME}" \
+                --build-arg MAIL_PASSWORD="${MAIL_PASSWORD}" \
+                --build-arg TOSS_CLIENT="${TOSS_CLIENT}" \
+                --build-arg TOSS_SECRET="${TOSS_SECRET}" \
+                --build-arg GEMINI_API_KEY="${GEMINI_API_KEY}" \
+                --build-arg WEATHER_API_KEY="${WEATHER_API_KEY}" \
+                --build-arg MONGO_URI="${MONGO_URI}" \
+                --build-arg COGNITO_USER_POOL_ID="${COGNITO_USER_POOL_ID}" \
+                --build-arg COGNITO_CLIENT_ID="${COGNITO_CLIENT_ID}" \
+                -t ${ecrRepo}:${IMAGE_TAG} \
+                -t ${ecrRepo}:latest \
+                -f ${dockerfilePath}/Dockerfile \
+                . || (echo "❌ Build failed for ${serviceName}" && exit 1)
+            
+            echo "📤 Pushing ${serviceName} to ECR..."
+            
+            # ECR에 푸시
+            docker push ${ecrRepo}:${IMAGE_TAG} || (echo "❌ Push failed for ${serviceName}:${IMAGE_TAG}" && exit 1)
+            docker push ${ecrRepo}:latest || (echo "❌ Push failed for ${serviceName}:latest" && exit 1)
+            
+            echo "✅ Successfully pushed ${serviceName} to ECR"
+            echo "📦 Image: ${ecrRepo}:${IMAGE_TAG}"
+            
+        else
+            echo "❌ Dockerfile not found at ${dockerfilePath}/Dockerfile"
+            echo "📁 Available files:"
+            ls -la ${dockerfilePath}/ || echo "Directory not found"
+            exit 1
+        fi
     """
-    
-    // 각 서비스에 대해 헬스체크 수행
-    services.each { service ->
-        try {
-            sh """
-                echo "Checking ${service.name} service..."
-                if curl -f --connect-timeout 10 --max-time 30 http://${SERVER_IP}:${service.port}/actuator/health 2>/dev/null; then
-                    echo "✅ ${service.name} Service: HEALTHY"
-                else
-                    echo "⚠️ ${service.name} Service: NOT READY (this might be normal during startup)"
-                fi
-            """
-        } catch (Exception e) {
-            echo "❌ Health check failed for ${service.name}: ${e.getMessage()}"
-        }
-    }
 }
