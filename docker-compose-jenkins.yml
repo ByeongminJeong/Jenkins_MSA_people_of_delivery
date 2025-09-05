@@ -20,24 +20,10 @@ services:
       bash -c "
         apt-get update &&
         apt-get install -y docker.io &&
-        service docker start &&
         usermod -aG docker jenkins &&
         chmod 666 /var/run/docker.sock &&
         /usr/local/bin/jenkins.sh
       "
 
-  # Docker-in-Docker (DinD) 서비스
-  docker-dind:
-    image: docker:dind
-    container_name: docker-dind
-    restart: unless-stopped
-    privileged: true
-    volumes:
-      - dind-storage:/var/lib/docker
-    environment:
-      - DOCKER_TLS_CERTDIR=/certs
-    command: --storage-driver=overlay2
-
 volumes:
   jenkins_home:
-  dind-storage:

@@ -133,6 +133,11 @@ pipeline {
                     # Java 버전 확인
                     java -version
                     
+                    # Docker 상태 확인 (호스트 Docker 사용)
+                    echo "=== Docker Status ==="
+                    docker version || echo "Docker not available"
+                    docker info | head -10 || echo "Docker info failed"
+                    
                     # Gradle 빌드 실행 (테스트 제외)
                     ./gradlew clean build \
                         -x test \
@@ -255,6 +260,11 @@ def buildAndPushToECR(String serviceName, String dockerfilePath) {
     sh """
         if [ -f ${dockerfilePath}/Dockerfile ]; then
             echo "✅ Found Dockerfile for ${serviceName}"
+            
+            # Docker 상태 확인 (호스트 Docker 사용)
+            echo "=== Docker Build Environment ==="
+            docker version
+            echo "Building for ECR: ${ecrRepo}"
             
             # Docker 이미지 빌드 (환경 변수 포함)
             echo "🔨 Building ${serviceName} with environment variables..."
