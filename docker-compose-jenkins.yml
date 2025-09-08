@@ -1,6 +1,8 @@
+version: '3.8'
+
 services:
   jenkins:
-    image: jenkins/jenkins:lts-jdk21  # JDK 21 이미지로 변경
+    image: jenkins/jenkins:lts-jdk21
     container_name: jenkins
     restart: unless-stopped
     user: root
@@ -12,29 +14,49 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.aws:/root/.aws:ro
     environment:
-      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false -Xmx768m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+UseCompressedOops
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
       - AWS_REGION=ap-northeast-2
-    deploy:
-      resources:
-        limits:
-          memory: 1.5G
-        reservations:
-          memory: 256M
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     command: >
       sh -c "
-        echo '🔧 Installing Docker and AWS CLI...' &&
-        apt-get update &&
-        apt-get install -y docker.io curl unzip &&
+        echo 'Installing system dependencies...' &&
+        
+        # 시스템 업데이트
+        apt-get update -qq &&
+        
+        # Docker CLI만 설치
+        apt-get install -y --no-install-recommends curl unzip ca-certificates &&
+        
+        # Docker CLI 바이너리 직접 설치
+        DOCKER_VERSION=20.10.24 &&
+        curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-$${DOCKER_VERSION}.tgz | tar -xz --strip-components=1 -C /usr/local/bin docker/docker &&
+        
+        # AWS CLI v2 설치
         curl -L 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip' &&
         unzip -q awscliv2.zip &&
         ./aws/install &&
+        
+        # 정리
         rm -rf awscliv2.zip aws/ &&
+        apt-get clean &&
+        rm -rf /var/lib/apt/lists/* &&
+        
+        # Docker 소켓 권한 설정
         chmod 666 /var/run/docker.sock 2>/dev/null || true &&
+        
         echo 'Installation complete!' &&
-        docker --version &&
-        aws --version &&
-        java -version &&
+        echo 'Docker version:' && docker --version &&
+        echo 'AWS CLI version:' && aws --version &&
+        echo 'Java version:' && java -version &&
+        echo 'Available memory:' && free -h &&
         echo 'Starting Jenkins...' &&
+        
         /usr/local/bin/jenkins.sh
       "
 
