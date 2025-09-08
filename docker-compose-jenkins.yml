@@ -12,14 +12,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.aws:/root/.aws:ro
     environment:
-      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false -Xmx2048m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false -Xmx768m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+UseCompressedOops
       - AWS_REGION=ap-northeast-2
     deploy:
       resources:
         limits:
-          memory: 3G
+          memory: 1.5G
         reservations:
-          memory: 1G
+          memory: 256M
     command: >
       sh -c "
         echo '🔧 Installing Docker and AWS CLI...' &&

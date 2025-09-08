@@ -106,7 +106,7 @@ pipeline {
                         --stacktrace \
                         --build-cache \
                         --max-workers=2 \
-                        -Dorg.gradle.jvmargs="-Xmx1024m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC"
+                        -Dorg.gradle.jvmargs="-Xmx512m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC"
                     
                     echo "=== Build Results ==="
                     find . -name "*.jar" -path "*/build/libs/*" | head -10
@@ -353,8 +353,8 @@ def buildAndPushToECR(String serviceName) {
         # Docker 이미지 빌드 (메모리 효율적인 방식)
         echo "Building Docker image..."
         DOCKER_BUILDKIT=1 docker build \
-            --memory=1.5g \
-            --memory-swap=3g \
+            --memory=512m \
+            --memory-swap=1g \
             -t ${ecrRepo}:${IMAGE_TAG} \
             -t ${ecrRepo}:latest \
             -f ${dockerfilePath} \
