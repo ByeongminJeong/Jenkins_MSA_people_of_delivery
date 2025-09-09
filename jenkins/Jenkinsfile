@@ -1,0 +1,218 @@
+pipeline {
+    agent any
+    
+    environment {
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "코드 체크아웃 중..."
+                checkout scm
+            }
+        }
+        
+        stage('Build and Push Images') {
+            parallel {
+                stage('Build Auth Service') {
+                    steps {
+                        dir('auth-service') {
+                            echo "Auth Service 빌드 중..."
+                            sh './gradlew clean build -x test'
+                            
+                            echo "Auth Service Docker 이미지 빌드 중..."
+                            sh "docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG} ."
+                            
+                            echo "Auth Service 이미지 ECR 푸시 중..."
+                            sh "docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}"
+                        }
+                    }
+                }
+                
+                stage('Build User Service') {
+                    steps {
+                        dir('user-service') {
+                            echo " User Service 빌드 중..."
+                            sh './gradlew clean build -x test'
+                            
+                            echo " User Service Docker 이미지 빌드 중..."
+                            sh "docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG} ."
+                            
+                            echo " User Service 이미지 ECR 푸시 중..."
+                            sh "docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}"
+                        }
+                    }
+                }
+                
+                stage('Build Module Common') {
+                    steps {
+                        dir('module-common') {
+                            echo " Module Common 빌드 중..."
+                            sh './gradlew clean build -x test'
+                            
+                            echo " Module Common Docker 이미지 빌드 중..."
+                            sh "docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG} ."
+                            
+                            echo " Module Common 이미지 ECR 푸시 중..."
+                            sh "docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG}"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy All Services (Single Config)') {
+            steps {
+                script {
+                    echo " 모든 서비스 배포 시작"
+                    
+                    configFileProvider([
+                        configFile(fileId: 'all-services', variable: 'ALL_CONFIG')
+                    ]) {
+                        sh '''
+                            echo " 모든 서비스 설정 파일 로드 중..."
+                            
+                            # 모든 설정 로드
+                            source $ALL_CONFIG
+                            
+                            echo " 설정 로드 완료"
+                            echo " AWS Region: $AWS_REGION"
+                            echo " Domain: $DOMAIN"
+                            echo " DB URL: $DB_URL"
+                            echo " Redis Host: $REDIS_HOST"
+                            echo " Auth Service Port: $AUTH_SERVICE_PORT"
+                            echo " User Service Port: $USER_SERVICE_PORT"
+                            echo " Module Common Port: $MODULE_COMMON_SERVICE_PORT"
+                            echo " 비밀 설정들은 안전하게 로드됨"
+                            
+                            # ========================================
+                            # Auth Service ConfigMap 및 Secret 생성
+                            # ========================================
+                            echo " Auth Service ConfigMap 생성 중..."
+                            kubectl create configmap auth-service-config \
+                                --from-literal=db-url="$DB_URL" \
+                                --from-literal=db-username="$DB_USERNAME" \
+                                --from-literal=redis-host="$REDIS_HOST" \
+                                --from-literal=redis-port="$REDIS_PORT" \
+                                --from-literal=google-client-id="$GOOGLE_CLIENT_ID" \
+                                --from-literal=mail-username="$MAIL_USERNAME" \
+                                --from-literal=service-port="$AUTH_SERVICE_PORT" \
+                                --from-literal=health-check-path="$AUTH_SERVICE_HEALTH_CHECK_PATH" \
+                                --dry-run=client -o yaml | kubectl apply -f -
+                            
+                            echo " Auth Service Secret 생성 중..."
+                            kubectl create secret generic auth-service-secrets \
+                                --from-literal=db-password="$DB_PASSWORD" \
+                                --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
+                                --from-literal=mail-password="$MAIL_PASSWORD" \
+                                --from-literal=jwt-secret="$JWT_SECRET" \
+                                --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
+                                --from-literal=passport-secret="$AUTH_SERVICE_PASSPORT_SECRET" \
+                                --from-literal=redis-password="$REDIS_PASSWORD" \
+                                --dry-run=client -o yaml | kubectl apply -f -
+                            
+                            # ========================================
+                            # User Service ConfigMap 및 Secret 생성
+                            # ========================================
+                            echo " User Service ConfigMap 생성 중..."
+                            kubectl create configmap user-service-config \
+                                --from-literal=db-url="$DB_URL" \
+                                --from-literal=db-username="$DB_USERNAME" \
+                                --from-literal=redis-host="$REDIS_HOST" \
+                                --from-literal=redis-port="$REDIS_PORT" \
+                                --from-literal=google-client-id="$GOOGLE_CLIENT_ID" \
+                                --from-literal=mail-username="$MAIL_USERNAME" \
+                                --from-literal=service-port="$USER_SERVICE_PORT" \
+                                --from-literal=health-check-path="$USER_SERVICE_HEALTH_CHECK_PATH" \
+                                --dry-run=client -o yaml | kubectl apply -f -
+                            
+                            echo " User Service Secret 생성 중..."
+                            kubectl create secret generic user-service-secrets \
+                                --from-literal=db-password="$DB_PASSWORD" \
+                                --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
+                                --from-literal=mail-password="$MAIL_PASSWORD" \
+                                --from-literal=jwt-secret="$JWT_SECRET" \
+                                --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
+                                --from-literal=passport-secret="$USER_SERVICE_PASSPORT_SECRET" \
+                                --from-literal=redis-password="$REDIS_PASSWORD" \
+                                --dry-run=client -o yaml | kubectl apply -f -
+                            
+                            # ========================================
+                            # Module Common ConfigMap 및 Secret 생성
+                            # ========================================
+                            echo " Module Common ConfigMap 생성 중..."
+                            kubectl create configmap module-common-config \
+                                --from-literal=db-url="$DB_URL" \
+                                --from-literal=db-username="$DB_USERNAME" \
+                                --from-literal=service-port="$MODULE_COMMON_SERVICE_PORT" \
+                                --from-literal=health-check-path="$MODULE_COMMON_SERVICE_HEALTH_CHECK_PATH" \
+                                --dry-run=client -o yaml | kubectl apply -f -
+                            
+                            echo " Module Common Secret 생성 중..."
+                            kubectl create secret generic module-common-secrets \
+                                --from-literal=db-password="$DB_PASSWORD" \
+                                --dry-run=client -o yaml | kubectl apply -f -
+                            
+                            echo " 모든 ConfigMap 및 Secret 생성 완료!"
+                            
+                            # ========================================
+                            # Argo Rollouts 배포
+                            # ========================================
+                            echo " Auth Service 카나리 배포 시작..."
+                            kubectl argo rollouts set image auth-service-rollout \
+                                auth-service=${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}
+                            kubectl argo rollouts promote auth-service-rollout
+                            
+                            echo " User Service 카나리 배포 시작..."
+                            kubectl argo rollouts set image user-service-rollout \
+                                user-service=${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}
+                            kubectl argo rollouts promote user-service-rollout
+                            
+                            echo " Module Common 카나리 배포 시작..."
+                            kubectl argo rollouts set image module-common-rollout \
+                                module-common=${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG}
+                            kubectl argo rollouts promote module-common-rollout
+                            
+                            echo " 모든 서비스 카나리 배포 시작 완료!"
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Monitor Canary Progress') {
+            steps {
+                script {
+                    echo "📊 카나리 배포 진행 상황 모니터링 중..."
+                    
+                    sh '''
+                        echo " Auth Service 롤아웃 상태 확인..."
+                        kubectl argo rollouts get rollout auth-service-rollout
+                        
+                        echo " User Service 롤아웃 상태 확인..."
+                        kubectl argo rollouts get rollout user-service-rollout
+                        
+                        echo " Module Common 롤아웃 상태 확인..."
+                        kubectl argo rollouts get rollout module-common-rollout
+                        
+                        echo " 20분 대기 중... (카나리 배포 진행)"
+                        sleep 1200
+                        
+                        echo " 카나리 배포 모니터링 완료!"
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo " 모든 서비스 배포 성공!"
+        }
+        failure {
+            echo " 배포 실패! 롤백을 고려하세요."
+        }
+    }
+}
