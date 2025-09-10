@@ -21,7 +21,7 @@ pipeline {
                         echo "설정 파일 로드 완료: $CONFIG_FILE"
                         
                         # 설정 파일 내용 로드
-                        source $CONFIG_FILE
+                        . $CONFIG_FILE
                         
                         # 주요 설정값들 확인 (비밀번호 제외)
                         echo "AWS Region: $AWS_REGION"
@@ -50,7 +50,7 @@ pipeline {
                 echo "ECR 로그인 중..."
                 configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                     sh '''
-                        source $CONFIG_FILE
+                        . $CONFIG_FILE
                         
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         echo "ECR Registry: $ECR_REGISTRY"
@@ -70,7 +70,7 @@ pipeline {
                             echo "Auth Service 빌드 중..."
                             configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                                 sh '''
-                                    source $CONFIG_FILE
+                                    . $CONFIG_FILE
                                     export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                                     
                                     echo "Auth Service Gradle 빌드 시작..."
@@ -102,7 +102,7 @@ pipeline {
                             echo "User Service 빌드 중..."
                             configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                                 sh '''
-                                    source $CONFIG_FILE
+                                    . $CONFIG_FILE
                                     export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                                     
                                     echo "User Service Gradle 빌드 시작..."
@@ -134,7 +134,7 @@ pipeline {
                             echo "Module Common 빌드 중..."
                             configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                                 sh '''
-                                    source $CONFIG_FILE
+                                    . $CONFIG_FILE
                                     export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                                     
                                     echo "Module Common Gradle 빌드 시작..."
@@ -167,7 +167,7 @@ pipeline {
                 echo "서비스 배포 시작"
                 configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                     sh '''
-                        source $CONFIG_FILE
+                        . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         
                         echo "배포 시작..."
