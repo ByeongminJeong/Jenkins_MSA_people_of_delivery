@@ -34,12 +34,12 @@ pipeline {
                         echo "Redis Host: $REDIS_HOST"
                         
                         # AWS 설정
-                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-                        aws configure set default.region $AWS_REGION
+                        /usr/local/bin/aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        /usr/local/bin/aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        /usr/local/bin/aws configure set default.region $AWS_REGION
                         
                         echo "AWS 설정 완료"
-                        aws sts get-caller-identity
+                        /usr/local/bin/aws sts get-caller-identity
                     '''
                 }
             }
@@ -72,7 +72,7 @@ pipeline {
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         echo "ECR Registry: $ECR_REGISTRY"
                         
-                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+                        /usr/local/bin/aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
                         echo "ECR 로그인 성공"
                     '''
                 }
@@ -192,10 +192,10 @@ pipeline {
                         echo "Image Tag: $IMAGE_TAG"
                         
                         # app 네임스페이스 생성
-                        kubectl create namespace app --dry-run=client -o yaml | kubectl apply -f -
+                        /usr/local/bin/kubectl create namespace app --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         # Auth Service ConfigMap
-                        kubectl create configmap auth-service-config -n app \
+                        /usr/local/bin/kubectl create configmap auth-service-config -n app \
                             --from-literal=db-url="$DB_URL" \
                             --from-literal=db-username="$DB_USERNAME" \
                             --from-literal=redis-host="$REDIS_HOST" \
@@ -204,10 +204,10 @@ pipeline {
                             --from-literal=mail-username="$MAIL_USERNAME" \
                             --from-literal=service-port="$AUTH_SERVICE_PORT" \
                             --from-literal=health-check-path="$AUTH_SERVICE_HEALTH_CHECK_PATH" \
-                            --dry-run=client -o yaml | kubectl apply -f -
+                            --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         # Auth Service Secret
-                        kubectl create secret generic auth-service-secrets -n app \
+                        /usr/local/bin/kubectl create secret generic auth-service-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
                             --from-literal=redis-password="$REDIS_PASSWORD" \
                             --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
@@ -215,10 +215,10 @@ pipeline {
                             --from-literal=jwt-secret="$JWT_SECRET" \
                             --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
                             --from-literal=passport-secret="$AUTH_SERVICE_PASSPORT_SECRET" \
-                            --dry-run=client -o yaml | kubectl apply -f -
+                            --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         # User Service ConfigMap
-                        kubectl create configmap user-service-config -n app \
+                        /usr/local/bin/kubectl create configmap user-service-config -n app \
                             --from-literal=db-url="$DB_URL" \
                             --from-literal=db-username="$DB_USERNAME" \
                             --from-literal=redis-host="$REDIS_HOST" \
@@ -227,10 +227,10 @@ pipeline {
                             --from-literal=mail-username="$MAIL_USERNAME" \
                             --from-literal=service-port="$USER_SERVICE_PORT" \
                             --from-literal=health-check-path="$USER_SERVICE_HEALTH_CHECK_PATH" \
-                            --dry-run=client -o yaml | kubectl apply -f -
+                            --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         # User Service Secret
-                        kubectl create secret generic user-service-secrets -n app \
+                        /usr/local/bin/kubectl create secret generic user-service-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
                             --from-literal=redis-password="$REDIS_PASSWORD" \
                             --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
@@ -238,52 +238,52 @@ pipeline {
                             --from-literal=jwt-secret="$JWT_SECRET" \
                             --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
                             --from-literal=passport-secret="$USER_SERVICE_PASSPORT_SECRET" \
-                            --dry-run=client -o yaml | kubectl apply -f -
+                            --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         # Module Common ConfigMap
-                        kubectl create configmap module-common-config -n app \
+                        /usr/local/bin/kubectl create configmap module-common-config -n app \
                             --from-literal=db-url="$DB_URL" \
                             --from-literal=db-username="$DB_USERNAME" \
                             --from-literal=service-port="$MODULE_COMMON_SERVICE_PORT" \
                             --from-literal=health-check-path="$MODULE_COMMON_SERVICE_HEALTH_CHECK_PATH" \
-                            --dry-run=client -o yaml | kubectl apply -f -
+                            --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         # Module Common Secret
-                        kubectl create secret generic module-common-secrets -n app \
+                        /usr/local/bin/kubectl create secret generic module-common-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
-                            --dry-run=client -o yaml | kubectl apply -f -
+                            --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         echo "ConfigMap 및 Secret 생성 완료"
                         
                         # Argo Rollouts 배포
-                        if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
+                        if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                             echo "Argo Rollouts 배포 시작..."
                             
                             # Auth Service
-                            if kubectl get rollout auth-service-rollout -n app >/dev/null 2>&1; then
-                                kubectl argo rollouts set image auth-service-rollout -n app \
+                            if /usr/local/bin/kubectl get rollout auth-service-rollout -n app >/dev/null 2>&1; then
+                                /usr/local/bin/kubectl argo rollouts set image auth-service-rollout -n app \
                                     auth-service=$ECR_REGISTRY/$ECR_PREFIX/auth-service:$IMAGE_TAG
-                                kubectl argo rollouts promote auth-service-rollout -n app
+                                /usr/local/bin/kubectl argo rollouts promote auth-service-rollout -n app
                                 echo "Auth Service 카나리 배포 완료"
                             else
                                 echo "Auth Service Rollout 없음"
                             fi
                             
                             # User Service
-                            if kubectl get rollout user-service-rollout -n app >/dev/null 2>&1; then
-                                kubectl argo rollouts set image user-service-rollout -n app \
+                            if /usr/local/bin/kubectl get rollout user-service-rollout -n app >/dev/null 2>&1; then
+                                /usr/local/bin/kubectl argo rollouts set image user-service-rollout -n app \
                                     user-service=$ECR_REGISTRY/$ECR_PREFIX/user-service:$IMAGE_TAG
-                                kubectl argo rollouts promote user-service-rollout -n app
+                                /usr/local/bin/kubectl argo rollouts promote user-service-rollout -n app
                                 echo "User Service 카나리 배포 완료"
                             else
                                 echo "User Service Rollout 없음"
                             fi
                             
                             # Module Common
-                            if kubectl get rollout module-common-rollout -n app >/dev/null 2>&1; then
-                                kubectl argo rollouts set image module-common-rollout -n app \
+                            if /usr/local/bin/kubectl get rollout module-common-rollout -n app >/dev/null 2>&1; then
+                                /usr/local/bin/kubectl argo rollouts set image module-common-rollout -n app \
                                     module-common=$ECR_REGISTRY/$ECR_PREFIX/module-common:$IMAGE_TAG
-                                kubectl argo rollouts promote module-common-rollout -n app
+                                /usr/local/bin/kubectl argo rollouts promote module-common-rollout -n app
                                 echo "Module Common 카나리 배포 완료"
                             else
                                 echo "Module Common Rollout 없음"
@@ -303,27 +303,27 @@ pipeline {
                 echo "배포 상태 확인 중..."
                 sh '''
                     echo "=== 배포 상태 확인 ==="
-                    kubectl get all -n app
+                    /usr/local/bin/kubectl get all -n app
                     
                     echo "=== ConfigMap 확인 ==="
-                    kubectl get configmaps -n app
+                    /usr/local/bin/kubectl get configmaps -n app
                     
                     echo "=== Secret 확인 ==="
-                    kubectl get secrets -n app
+                    /usr/local/bin/kubectl get secrets -n app
                     
                     echo "=== Rollout 확인 ==="
-                    if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
-                        kubectl get rollouts -n app || echo "Rollout 없음"
+                    if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
+                        /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 없음"
                         
                         # 각 Rollout 상태 확인
-                        if kubectl get rollout auth-service-rollout -n app >/dev/null 2>&1; then
+                        if /usr/local/bin/kubectl get rollout auth-service-rollout -n app >/dev/null 2>&1; then
                             echo "Auth Service Rollout 상태:"
-                            kubectl argo rollouts get rollout auth-service-rollout -n app
+                            /usr/local/bin/kubectl argo rollouts get rollout auth-service-rollout -n app
                         fi
                         
-                        if kubectl get rollout user-service-rollout -n app >/dev/null 2>&1; then
+                        if /usr/local/bin/kubectl get rollout user-service-rollout -n app >/dev/null 2>&1; then
                             echo "User Service Rollout 상태:"
-                            kubectl argo rollouts get rollout user-service-rollout -n app
+                            /usr/local/bin/kubectl argo rollouts get rollout user-service-rollout -n app
                         fi
                     else
                         echo "Argo Rollouts 미설치"
@@ -340,17 +340,17 @@ pipeline {
             echo "전체 파이프라인 성공!"
             sh '''
                 echo "=== 최종 배포 결과 ==="
-                kubectl get pods -n app
+                /usr/local/bin/kubectl get pods -n app
                 echo "=== 이미지 확인 ==="
-                kubectl get pods -n app -o jsonpath="{.items[*].spec.containers[*].image}" | tr " " "\\n" | sort | uniq
+                /usr/local/bin/kubectl get pods -n app -o jsonpath="{.items[*].spec.containers[*].image}" | tr " " "\\n" | sort | uniq
             '''
         }
         failure {
             echo "파이프라인 실패!"
             sh '''
                 echo "=== 디버깅 정보 ==="
-                kubectl get all -n app || echo "app 네임스페이스 없음"
-                kubectl get events -n app --sort-by='.lastTimestamp' | tail -10 || echo "이벤트 없음"
+                /usr/local/bin/kubectl get all -n app || echo "app 네임스페이스 없음"
+                /usr/local/bin/kubectl get events -n app --sort-by='.lastTimestamp' | tail -10 || echo "이벤트 없음"
             '''
         }
         always {
