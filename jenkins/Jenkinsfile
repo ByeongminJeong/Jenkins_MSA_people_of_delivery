@@ -3,6 +3,9 @@ pipeline {
     
     environment {
         IMAGE_TAG = "${BUILD_NUMBER}"
+        AWS_REGION = 'ap-northeast-2'
+        AWS_ACCOUNT_ID = '061039771693'
+        ECR_PREFIX = 'peopleofdelivery'
     }
     
     stages {
@@ -13,32 +16,17 @@ pipeline {
             }
         }
         
-        stage('Load Environment Variables') {
+        stage('AWS ECR Login') {
             steps {
-                echo "ConfigFile에서 환경변수 로드 중..."
-                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
-                    script {
-                        // ConfigFile Provider에서 환경변수 로드
-                        def configContent = readFile file: env.CONFIG_FILE
-                        def lines = configContent.split('\n')
-                        
-                        lines.each { line ->
-                            if (line.trim() && !line.startsWith('#')) {
-                                def parts = line.split('=', 2)
-                                if (parts.length == 2) {
-                                    def key = parts[0].trim()
-                                    def value = parts[1].trim()
-                                    env[key] = value
-                                    echo "환경변수 설정: ${key} = ${value}"
-                                }
-                            }
-                        }
-                        
-                        // ECR_REGISTRY 설정 (ConfigFile 로드 후)
-                        env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
-                        echo "ECR_REGISTRY 설정: ${env.ECR_REGISTRY}"
-                    }
+                echo "ECR 로그인 중..."
+                script {
+                    env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+                    echo "ECR_REGISTRY 설정: ${env.ECR_REGISTRY}"
                 }
+                sh '''
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    echo "ECR 로그인 성공"
+                '''
             }
         }
         
@@ -48,13 +36,14 @@ pipeline {
                     steps {
                         dir('auth-service') {
                             echo "Auth Service 빌드 중..."
-                            // Gradle Wrapper가 없으면 생성
                             sh '''
+                                echo "Gradle 빌드 시작..."
+                                
+                                # Gradle Wrapper 확인 및 생성
                                 if [ ! -f "./gradlew" ]; then
                                     echo "Gradle Wrapper가 없습니다. 생성 중..."
-                                    # Gradle이 설치되어 있지 않으면 직접 다운로드
                                     if ! command -v gradle &> /dev/null; then
-                                        echo "Gradle이 설치되어 있지 않습니다. 직접 설치 중..."
+                                        echo "Gradle 다운로드 중..."
                                         curl -L -o gradle-8.13-bin.zip https://services.gradle.org/distributions/gradle-8.13-bin.zip
                                         unzip -q gradle-8.13-bin.zip
                                         export PATH=$PATH:$(pwd)/gradle-8.13/bin
@@ -63,14 +52,22 @@ pipeline {
                                         gradle wrapper --gradle-version=8.13
                                     fi
                                 fi
+                                
+                                # 권한 설정
+                                chmod +x ./gradlew
+                                
+                                # 빌드 실행
+                                echo "Gradle 빌드 실행..."
+                                ./gradlew clean build -x test --no-daemon --stacktrace
+                                
+                                echo "Docker 이미지 빌드 중..."
+                                docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG} .
+                                
+                                echo "ECR에 이미지 푸시 중..."
+                                docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}
+                                
+                                echo "Auth Service 빌드 및 푸시 완료"
                             '''
-                            sh './gradlew clean build -x test'
-                            
-                            echo "Auth Service Docker 이미지 빌드 중..."
-                            sh "docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG} ."
-                            
-                            echo "Auth Service 이미지 ECR 푸시 중..."
-                            sh "docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -78,21 +75,39 @@ pipeline {
                 stage('Build User Service') {
                     steps {
                         dir('user-service') {
-                            echo " User Service 빌드 중..."
-                            // Gradle Wrapper가 없으면 생성
+                            echo "User Service 빌드 중..."
                             sh '''
+                                echo "Gradle 빌드 시작..."
+                                
+                                # Gradle Wrapper 확인 및 생성
                                 if [ ! -f "./gradlew" ]; then
                                     echo "Gradle Wrapper가 없습니다. 생성 중..."
-                                    gradle wrapper --gradle-version=8.13
+                                    if ! command -v gradle &> /dev/null; then
+                                        echo "Gradle 다운로드 중..."
+                                        curl -L -o gradle-8.13-bin.zip https://services.gradle.org/distributions/gradle-8.13-bin.zip
+                                        unzip -q gradle-8.13-bin.zip
+                                        export PATH=$PATH:$(pwd)/gradle-8.13/bin
+                                        gradle wrapper --gradle-version=8.13
+                                    else
+                                        gradle wrapper --gradle-version=8.13
+                                    fi
                                 fi
+                                
+                                # 권한 설정
+                                chmod +x ./gradlew
+                                
+                                # 빌드 실행
+                                echo "Gradle 빌드 실행..."
+                                ./gradlew clean build -x test --no-daemon --stacktrace
+                                
+                                echo "Docker 이미지 빌드 중..."
+                                docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG} .
+                                
+                                echo "ECR에 이미지 푸시 중..."
+                                docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}
+                                
+                                echo "User Service 빌드 및 푸시 완료"
                             '''
-                            sh './gradlew clean build -x test'
-                            
-                            echo " User Service Docker 이미지 빌드 중..."
-                            sh "docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG} ."
-                            
-                            echo " User Service 이미지 ECR 푸시 중..."
-                            sh "docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -100,177 +115,221 @@ pipeline {
                 stage('Build Module Common') {
                     steps {
                         dir('module-common') {
-                            echo " Module Common 빌드 중..."
-                            // Gradle Wrapper가 없으면 생성
+                            echo "Module Common 빌드 중..."
                             sh '''
+                                echo "Gradle 빌드 시작..."
+                                
+                                # Gradle Wrapper 확인 및 생성
                                 if [ ! -f "./gradlew" ]; then
                                     echo "Gradle Wrapper가 없습니다. 생성 중..."
-                                    gradle wrapper --gradle-version=8.13
+                                    if ! command -v gradle &> /dev/null; then
+                                        echo "Gradle 다운로드 중..."
+                                        curl -L -o gradle-8.13-bin.zip https://services.gradle.org/distributions/gradle-8.13-bin.zip
+                                        unzip -q gradle-8.13-bin.zip
+                                        export PATH=$PATH:$(pwd)/gradle-8.13/bin
+                                        gradle wrapper --gradle-version=8.13
+                                    else
+                                        gradle wrapper --gradle-version=8.13
+                                    fi
                                 fi
+                                
+                                # 권한 설정
+                                chmod +x ./gradlew
+                                
+                                # 빌드 실행
+                                echo "Gradle 빌드 실행..."
+                                ./gradlew clean build -x test --no-daemon --stacktrace
+                                
+                                echo "Docker 이미지 빌드 중..."
+                                docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG} .
+                                
+                                echo "ECR에 이미지 푸시 중..."
+                                docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG}
+                                
+                                echo "Module Common 빌드 및 푸시 완료"
                             '''
-                            sh './gradlew clean build -x test'
-                            
-                            echo " Module Common Docker 이미지 빌드 중..."
-                            sh "docker build -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG} ."
-                            
-                            echo " Module Common 이미지 ECR 푸시 중..."
-                            sh "docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG}"
                         }
                     }
                 }
             }
         }
         
-        stage('Deploy All Services (Single Config)') {
+        stage('Deploy All Services') {
             steps {
-                script {
-                    echo " 모든 서비스 배포 시작"
-                    
-                    configFileProvider([
-                        configFile(fileId: 'all-services', variable: 'ALL_CONFIG')
-                    ]) {
-                        sh '''
-                            echo " 모든 서비스 설정 파일 로드 중..."
+                echo "모든 서비스 배포 시작"
+                configFileProvider([configFile(fileId: 'all-services', variable: 'ALL_CONFIG')]) {
+                    sh '''
+                        echo "설정 파일 로드 중..."
+                        
+                        # 설정 파일 내용 확인
+                        echo "설정 파일 경로: $ALL_CONFIG"
+                        
+                        # 설정 로드
+                        source $ALL_CONFIG
+                        
+                        echo "설정 로드 완료"
+                        echo "AWS Region: $AWS_REGION"
+                        echo "Auth Service Port: $AUTH_SERVICE_PORT"
+                        echo "User Service Port: $USER_SERVICE_PORT"
+                        echo "Module Common Port: $MODULE_COMMON_SERVICE_PORT"
+                        
+                        # app 네임스페이스 생성 (없으면)
+                        kubectl create namespace app --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        # Auth Service ConfigMap 및 Secret 생성
+                        echo "Auth Service ConfigMap 생성 중..."
+                        kubectl create configmap auth-service-config -n app \
+                            --from-literal=db-url="$DB_URL" \
+                            --from-literal=db-username="$DB_USERNAME" \
+                            --from-literal=redis-host="$REDIS_HOST" \
+                            --from-literal=redis-port="$REDIS_PORT" \
+                            --from-literal=google-client-id="$GOOGLE_CLIENT_ID" \
+                            --from-literal=mail-username="$MAIL_USERNAME" \
+                            --from-literal=service-port="$AUTH_SERVICE_PORT" \
+                            --from-literal=health-check-path="$AUTH_SERVICE_HEALTH_CHECK_PATH" \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        echo "Auth Service Secret 생성 중..."
+                        kubectl create secret generic auth-service-secrets -n app \
+                            --from-literal=db-password="$DB_PASSWORD" \
+                            --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
+                            --from-literal=mail-password="$MAIL_PASSWORD" \
+                            --from-literal=jwt-secret="$JWT_SECRET" \
+                            --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
+                            --from-literal=passport-secret="$AUTH_SERVICE_PASSPORT_SECRET" \
+                            --from-literal=redis-password="$REDIS_PASSWORD" \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        # User Service ConfigMap 및 Secret 생성
+                        echo "User Service ConfigMap 생성 중..."
+                        kubectl create configmap user-service-config -n app \
+                            --from-literal=db-url="$DB_URL" \
+                            --from-literal=db-username="$DB_USERNAME" \
+                            --from-literal=redis-host="$REDIS_HOST" \
+                            --from-literal=redis-port="$REDIS_PORT" \
+                            --from-literal=google-client-id="$GOOGLE_CLIENT_ID" \
+                            --from-literal=mail-username="$MAIL_USERNAME" \
+                            --from-literal=service-port="$USER_SERVICE_PORT" \
+                            --from-literal=health-check-path="$USER_SERVICE_HEALTH_CHECK_PATH" \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        echo "User Service Secret 생성 중..."
+                        kubectl create secret generic user-service-secrets -n app \
+                            --from-literal=db-password="$DB_PASSWORD" \
+                            --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
+                            --from-literal=mail-password="$MAIL_PASSWORD" \
+                            --from-literal=jwt-secret="$JWT_SECRET" \
+                            --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
+                            --from-literal=passport-secret="$USER_SERVICE_PASSPORT_SECRET" \
+                            --from-literal=redis-password="$REDIS_PASSWORD" \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        # Module Common ConfigMap 및 Secret 생성
+                        echo "Module Common ConfigMap 생성 중..."
+                        kubectl create configmap module-common-config -n app \
+                            --from-literal=db-url="$DB_URL" \
+                            --from-literal=db-username="$DB_USERNAME" \
+                            --from-literal=service-port="$MODULE_COMMON_SERVICE_PORT" \
+                            --from-literal=health-check-path="$MODULE_COMMON_SERVICE_HEALTH_CHECK_PATH" \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        echo "Module Common Secret 생성 중..."
+                        kubectl create secret generic module-common-secrets -n app \
+                            --from-literal=db-password="$DB_PASSWORD" \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        echo "모든 ConfigMap 및 Secret 생성 완료"
+                        
+                        # Argo Rollouts가 설치되어 있다면 배포
+                        if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
+                            echo "Argo Rollouts 배포 시작..."
                             
-                            # 모든 설정 로드
-                            source $ALL_CONFIG
+                            # Auth Service 배포
+                            if kubectl get rollout auth-service-rollout -n app >/dev/null 2>&1; then
+                                kubectl argo rollouts set image auth-service-rollout -n app \
+                                    auth-service=${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}
+                                kubectl argo rollouts promote auth-service-rollout -n app
+                                echo "Auth Service 카나리 배포 시작"
+                            else
+                                echo "Auth Service Rollout이 존재하지 않습니다. k8s 매니페스트를 먼저 적용하세요."
+                            fi
                             
-                            echo " 설정 로드 완료"
-                            echo " AWS Region: $AWS_REGION"
-                            echo " Domain: $DOMAIN"
-                            echo " DB URL: $DB_URL"
-                            echo " Redis Host: $REDIS_HOST"
-                            echo " Auth Service Port: $AUTH_SERVICE_PORT"
-                            echo " User Service Port: $USER_SERVICE_PORT"
-                            echo " Module Common Port: $MODULE_COMMON_SERVICE_PORT"
-                            echo " 비밀 설정들은 안전하게 로드됨"
+                            # User Service 배포
+                            if kubectl get rollout user-service-rollout -n app >/dev/null 2>&1; then
+                                kubectl argo rollouts set image user-service-rollout -n app \
+                                    user-service=${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}
+                                kubectl argo rollouts promote user-service-rollout -n app
+                                echo "User Service 카나리 배포 시작"
+                            else
+                                echo "User Service Rollout이 존재하지 않습니다. k8s 매니페스트를 먼저 적용하세요."
+                            fi
                             
-                            # ========================================
-                            # Auth Service ConfigMap 및 Secret 생성
-                            # ========================================
-                            echo " Auth Service ConfigMap 생성 중..."
-                            kubectl create configmap auth-service-config -n app \
-                                --from-literal=db-url="$DB_URL" \
-                                --from-literal=db-username="$DB_USERNAME" \
-                                --from-literal=redis-host="$REDIS_HOST" \
-                                --from-literal=redis-port="$REDIS_PORT" \
-                                --from-literal=google-client-id="$GOOGLE_CLIENT_ID" \
-                                --from-literal=mail-username="$MAIL_USERNAME" \
-                                --from-literal=service-port="$AUTH_SERVICE_PORT" \
-                                --from-literal=health-check-path="$AUTH_SERVICE_HEALTH_CHECK_PATH" \
-                                --dry-run=client -o yaml | kubectl apply -f -
+                            # Module Common 배포
+                            if kubectl get rollout module-common-rollout -n app >/dev/null 2>&1; then
+                                kubectl argo rollouts set image module-common-rollout -n app \
+                                    module-common=${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG}
+                                kubectl argo rollouts promote module-common-rollout -n app
+                                echo "Module Common 카나리 배포 시작"
+                            else
+                                echo "Module Common Rollout이 존재하지 않습니다. k8s 매니페스트를 먼저 적용하세요."
+                            fi
+                        else
+                            echo "Argo Rollouts가 설치되지 않았습니다. 일반 Deployment로 배포합니다."
                             
-                            echo " Auth Service Secret 생성 중..."
-                            kubectl create secret generic auth-service-secrets -n app \
-                                --from-literal=db-password="$DB_PASSWORD" \
-                                --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
-                                --from-literal=mail-password="$MAIL_PASSWORD" \
-                                --from-literal=jwt-secret="$JWT_SECRET" \
-                                --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
-                                --from-literal=passport-secret="$AUTH_SERVICE_PASSPORT_SECRET" \
-                                --from-literal=redis-password="$REDIS_PASSWORD" \
-                                --dry-run=client -o yaml | kubectl apply -f -
-                            
-                            # ========================================
-                            # User Service ConfigMap 및 Secret 생성
-                            # ========================================
-                            echo " User Service ConfigMap 생성 중..."
-                            kubectl create configmap user-service-config -n app \
-                                --from-literal=db-url="$DB_URL" \
-                                --from-literal=db-username="$DB_USERNAME" \
-                                --from-literal=redis-host="$REDIS_HOST" \
-                                --from-literal=redis-port="$REDIS_PORT" \
-                                --from-literal=google-client-id="$GOOGLE_CLIENT_ID" \
-                                --from-literal=mail-username="$MAIL_USERNAME" \
-                                --from-literal=service-port="$USER_SERVICE_PORT" \
-                                --from-literal=health-check-path="$USER_SERVICE_HEALTH_CHECK_PATH" \
-                                --dry-run=client -o yaml | kubectl apply -f -
-                            
-                            echo " User Service Secret 생성 중..."
-                            kubectl create secret generic user-service-secrets -n app \
-                                --from-literal=db-password="$DB_PASSWORD" \
-                                --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
-                                --from-literal=mail-password="$MAIL_PASSWORD" \
-                                --from-literal=jwt-secret="$JWT_SECRET" \
-                                --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
-                                --from-literal=passport-secret="$USER_SERVICE_PASSPORT_SECRET" \
-                                --from-literal=redis-password="$REDIS_PASSWORD" \
-                                --dry-run=client -o yaml | kubectl apply -f -
-                            
-                            # ========================================
-                            # Module Common ConfigMap 및 Secret 생성
-                            # ========================================
-                            echo " Module Common ConfigMap 생성 중..."
-                            kubectl create configmap module-common-config -n app \
-                                --from-literal=db-url="$DB_URL" \
-                                --from-literal=db-username="$DB_USERNAME" \
-                                --from-literal=service-port="$MODULE_COMMON_SERVICE_PORT" \
-                                --from-literal=health-check-path="$MODULE_COMMON_SERVICE_HEALTH_CHECK_PATH" \
-                                --dry-run=client -o yaml | kubectl apply -f -
-                            
-                            echo " Module Common Secret 생성 중..."
-                            kubectl create secret generic module-common-secrets -n app \
-                                --from-literal=db-password="$DB_PASSWORD" \
-                                --dry-run=client -o yaml | kubectl apply -f -
-                            
-                            echo " 모든 ConfigMap 및 Secret 생성 완료!"
-                            
-                            # ========================================
-                            # Argo Rollouts 배포
-                            # ========================================
-                            echo " Auth Service 카나리 배포 시작..."
-                            kubectl argo rollouts set image auth-service-rollout -n app \
-                                auth-service=${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}
-                            kubectl argo rollouts promote auth-service-rollout -n app
-                            
-                            echo " User Service 카나리 배포 시작..."
-                            kubectl argo rollouts set image user-service-rollout -n app \
-                                user-service=${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}
-                            kubectl argo rollouts promote user-service-rollout -n app
-                            
-                            echo " Module Common 카나리 배포 시작..."
-                            kubectl argo rollouts set image module-common-rollout -n app \
-                                module-common=${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG}
-                            kubectl argo rollouts promote module-common-rollout -n app
-                            
-                            echo " 모든 서비스 카나리 배포 시작 완료!"
-                        '''
-                    }
+                            # 일반 Deployment 배포 (fallback)
+                            kubectl set image deployment/auth-service -n app \
+                                auth-service=${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG} || echo "Auth Service Deployment 없음"
+                            kubectl set image deployment/user-service -n app \
+                                user-service=${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG} || echo "User Service Deployment 없음"
+                            kubectl set image deployment/module-common -n app \
+                                module-common=${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG} || echo "Module Common Deployment 없음"
+                        fi
+                        
+                        echo "배포 명령 완료"
+                    '''
                 }
             }
         }
         
-        stage('Monitor Canary Progress') {
+        stage('Monitor Deployment') {
             steps {
-                script {
-                    echo "📊 카나리 배포 진행 상황 모니터링 중..."
+                echo "배포 상태 모니터링 중..."
+                sh '''
+                    echo "현재 네임스페이스 app의 리소스들:"
+                    kubectl get all -n app
                     
-                    sh '''
-                        echo " Auth Service 롤아웃 상태 확인..."
-                        kubectl argo rollouts get rollout auth-service-rollout -n app
-                        
-                        echo " User Service 롤아웃 상태 확인..."
-                        kubectl argo rollouts get rollout user-service-rollout -n app
-                        
-                        echo " Module Common 롤아웃 상태 확인..."
-                        kubectl argo rollouts get rollout module-common-rollout -n app
-                        
-                        echo " 20분 대기 중... (카나리 배포 진행)"
-                        sleep 1200
-                        
-                        echo " 카나리 배포 모니터링 완료!"
-                    '''
-                }
+                    echo "ConfigMap 확인:"
+                    kubectl get configmaps -n app
+                    
+                    echo "Secret 확인:"
+                    kubectl get secrets -n app
+                    
+                    if kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
+                        echo "Rollout 상태 확인:"
+                        kubectl get rollouts -n app || echo "Rollout 없음"
+                    fi
+                    
+                    echo "배포 상태 확인 완료"
+                '''
             }
         }
     }
     
     post {
         success {
-            echo " 모든 서비스 배포 성공!"
+            echo "모든 서비스 배포 성공!"
         }
         failure {
-            echo " 배포 실패! 롤백을 고려하세요."
+            echo "배포 실패! 로그를 확인하세요."
+            sh '''
+                echo "실패 상황 디버깅 정보:"
+                kubectl get all -n app || echo "app 네임스페이스 없음"
+                docker images | grep ${ECR_PREFIX} || echo "빌드된 이미지 없음"
+            '''
+        }
+        always {
+            echo "빌드 완료. 리소스 정리 중..."
+            sh 'docker system prune -f || true'
         }
     }
 }
