@@ -2,15 +2,8 @@ pipeline {
     agent any
     
     environment {
-        AWS_REGION = "ap-northeast-2"
-        AWS_ACCOUNT_ID = "061039771693"
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_PREFIX = "peopleofdelivery"
+        # 기본 빌드 설정
         IMAGE_TAG = "${BUILD_NUMBER}"
-    }
-    
-    options {
-        configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')])
     }
     
     stages {
@@ -24,12 +17,18 @@ pipeline {
         stage('Load Environment Variables') {
             steps {
                 echo "ConfigFile에서 환경변수 로드 중..."
-                script {
-                    // ConfigFile Provider에서 환경변수 로드
-                    def props = readProperties file: env.CONFIG_FILE
-                    props.each { key, value ->
-                        env[key] = value
-                        echo "환경변수 설정: ${key} = ${value}"
+                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
+                    script {
+                        // ConfigFile Provider에서 환경변수 로드
+                        def props = readProperties file: env.CONFIG_FILE
+                        props.each { key, value ->
+                            env[key] = value
+                            echo "환경변수 설정: ${key} = ${value}"
+                        }
+                        
+                        // ECR_REGISTRY 설정 (ConfigFile 로드 후)
+                        env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+                        echo "ECR_REGISTRY 설정: ${env.ECR_REGISTRY}"
                     }
                 }
             }
