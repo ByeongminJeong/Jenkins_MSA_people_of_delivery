@@ -104,9 +104,20 @@ pipeline {
                             echo "Auth Service 빌드 중..."
                             configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                                 sh '''
+                                    # 설정 파일 로드
                                     . $CONFIG_FILE
+
+                                    # 환경변수 명시적 설정 및 확인
                                     export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                                    
+                                    export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
+
+                                    # 디버깅을 위한 환경변수 출력
+                                    echo "=== Auth Service 환경변수 확인 ==="
+                                    echo "ECR_REGISTRY: ${ECR_REGISTRY}"
+                                    echo "ECR_PREFIX: ${ECR_PREFIX}"
+                                    echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
+                                    echo "================================"
+
                                     echo "Auth Service Gradle 빌드 시작..."
                                     
                                     if [ -f "./gradlew" ]; then
@@ -118,11 +129,11 @@ pipeline {
                                     fi
                                     
                                     echo "Auth Service Docker 이미지 빌드..."
-                                    docker build -f ./Dockerfile -t $ECR_REGISTRY/$ECR_PREFIX/auth-service:$IMAGE_TAG ..
-                                    
+                                    docker build -f ./Dockerfile -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR} ..
+
                                     echo "Auth Service ECR 푸시..."
-                                    docker push $ECR_REGISTRY/$ECR_PREFIX/auth-service:$IMAGE_TAG
-                                    
+                                    docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR}
+
                                     echo "Auth Service 완료"
                                 '''
                             }
@@ -136,9 +147,20 @@ pipeline {
                             echo "User Service 빌드 중..."
                             configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                                 sh '''
+                                    # 설정 파일 로드
                                     . $CONFIG_FILE
+
+                                    # 환경변수 명시적 설정 및 확인
                                     export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                                    
+                                    export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
+
+                                    # 디버깅을 위한 환경변수 출력
+                                    echo "=== User Service 환경변수 확인 ==="
+                                    echo "ECR_REGISTRY: ${ECR_REGISTRY}"
+                                    echo "ECR_PREFIX: ${ECR_PREFIX}"
+                                    echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
+                                    echo "================================"
+
                                     echo "User Service Gradle 빌드 시작..."
                                     
                                     if [ -f "./gradlew" ]; then
@@ -150,11 +172,11 @@ pipeline {
                                     fi
                                     
                                     echo "User Service Docker 이미지 빌드..."
-                                    docker build -f ./Dockerfile -t $ECR_REGISTRY/$ECR_PREFIX/user-service:$IMAGE_TAG ..
-                                    
+                                    docker build -f ./Dockerfile -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} ..
+
                                     echo "User Service ECR 푸시..."
-                                    docker push $ECR_REGISTRY/$ECR_PREFIX/user-service:$IMAGE_TAG
-                                    
+                                    docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR}
+
                                     echo "User Service 완료"
                                 '''
                             }
@@ -168,9 +190,20 @@ pipeline {
                             echo "Module Common 빌드 중..."
                             configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                                 sh '''
+                                    # 설정 파일 로드
                                     . $CONFIG_FILE
+
+                                    # 환경변수 명시적 설정 및 확인
                                     export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                                    
+                                    export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
+
+                                    # 디버깅을 위한 환경변수 출력
+                                    echo "=== Module Common 환경변수 확인 ==="
+                                    echo "ECR_REGISTRY: ${ECR_REGISTRY}"
+                                    echo "ECR_PREFIX: ${ECR_PREFIX}"
+                                    echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
+                                    echo "===================================="
+
                                     echo "Module Common Gradle 빌드 시작..."
                                     
                                     if [ -f "./gradlew" ]; then
@@ -182,11 +215,11 @@ pipeline {
                                     fi
                                     
                                     echo "Module Common Docker 이미지 빌드..."
-                                    docker build -f ./Dockerfile -t $ECR_REGISTRY/$ECR_PREFIX/module-common:$IMAGE_TAG ..
-                                    
+                                    docker build -f ./Dockerfile -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR} ..
+
                                     echo "Module Common ECR 푸시..."
-                                    docker push $ECR_REGISTRY/$ECR_PREFIX/module-common:$IMAGE_TAG
-                                    
+                                    docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR}
+
                                     echo "Module Common 완료"
                                 '''
                             }
