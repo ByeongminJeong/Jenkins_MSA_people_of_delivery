@@ -9,11 +9,29 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
     
+    options {
+        configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')])
+    }
+    
     stages {
         stage('Checkout') {
             steps {
                 echo "코드 체크아웃 중..."
                 checkout scm
+            }
+        }
+        
+        stage('Load Environment Variables') {
+            steps {
+                echo "ConfigFile에서 환경변수 로드 중..."
+                script {
+                    // ConfigFile Provider에서 환경변수 로드
+                    def props = readProperties file: env.CONFIG_FILE
+                    props.each { key, value ->
+                        env[key] = value
+                        echo "환경변수 설정: ${key} = ${value}"
+                    }
+                }
             }
         }
         
@@ -30,7 +48,7 @@ pipeline {
                                     # Gradle이 설치되어 있지 않으면 직접 다운로드
                                     if ! command -v gradle &> /dev/null; then
                                         echo "Gradle이 설치되어 있지 않습니다. 직접 설치 중..."
-                                        wget -q https://services.gradle.org/distributions/gradle-8.13-bin.zip
+                                        curl -L -o gradle-8.13-bin.zip https://services.gradle.org/distributions/gradle-8.13-bin.zip
                                         unzip -q gradle-8.13-bin.zip
                                         export PATH=$PATH:$(pwd)/gradle-8.13/bin
                                         gradle wrapper --gradle-version=8.13
