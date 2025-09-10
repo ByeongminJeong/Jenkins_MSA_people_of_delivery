@@ -40,6 +40,15 @@ pipeline {
                         
                         echo "AWS 설정 완료"
                         aws sts get-caller-identity
+                        
+                        # Docker 데몬 시작
+                        echo "Docker 데몬 시작 중..."
+                        dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2376 &
+                        sleep 10
+                        
+                        # Docker 상태 확인
+                        docker version || echo "Docker 데몬 시작 중..."
+                        docker ps || echo "Docker 데몬 시작 중..."
                     '''
                 }
             }
