@@ -91,7 +91,7 @@ pipeline {
                             # Auth Service ConfigMap 및 Secret 생성
                             # ========================================
                             echo " Auth Service ConfigMap 생성 중..."
-                            kubectl create configmap auth-service-config \
+                            kubectl create configmap auth-service-config -n app \
                                 --from-literal=db-url="$DB_URL" \
                                 --from-literal=db-username="$DB_USERNAME" \
                                 --from-literal=redis-host="$REDIS_HOST" \
@@ -103,7 +103,7 @@ pipeline {
                                 --dry-run=client -o yaml | kubectl apply -f -
                             
                             echo " Auth Service Secret 생성 중..."
-                            kubectl create secret generic auth-service-secrets \
+                            kubectl create secret generic auth-service-secrets -n app \
                                 --from-literal=db-password="$DB_PASSWORD" \
                                 --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
                                 --from-literal=mail-password="$MAIL_PASSWORD" \
@@ -117,7 +117,7 @@ pipeline {
                             # User Service ConfigMap 및 Secret 생성
                             # ========================================
                             echo " User Service ConfigMap 생성 중..."
-                            kubectl create configmap user-service-config \
+                            kubectl create configmap user-service-config -n app \
                                 --from-literal=db-url="$DB_URL" \
                                 --from-literal=db-username="$DB_USERNAME" \
                                 --from-literal=redis-host="$REDIS_HOST" \
@@ -129,7 +129,7 @@ pipeline {
                                 --dry-run=client -o yaml | kubectl apply -f -
                             
                             echo " User Service Secret 생성 중..."
-                            kubectl create secret generic user-service-secrets \
+                            kubectl create secret generic user-service-secrets -n app \
                                 --from-literal=db-password="$DB_PASSWORD" \
                                 --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
                                 --from-literal=mail-password="$MAIL_PASSWORD" \
@@ -143,7 +143,7 @@ pipeline {
                             # Module Common ConfigMap 및 Secret 생성
                             # ========================================
                             echo " Module Common ConfigMap 생성 중..."
-                            kubectl create configmap module-common-config \
+                            kubectl create configmap module-common-config -n app \
                                 --from-literal=db-url="$DB_URL" \
                                 --from-literal=db-username="$DB_USERNAME" \
                                 --from-literal=service-port="$MODULE_COMMON_SERVICE_PORT" \
@@ -151,7 +151,7 @@ pipeline {
                                 --dry-run=client -o yaml | kubectl apply -f -
                             
                             echo " Module Common Secret 생성 중..."
-                            kubectl create secret generic module-common-secrets \
+                            kubectl create secret generic module-common-secrets -n app \
                                 --from-literal=db-password="$DB_PASSWORD" \
                                 --dry-run=client -o yaml | kubectl apply -f -
                             
@@ -161,19 +161,19 @@ pipeline {
                             # Argo Rollouts 배포
                             # ========================================
                             echo " Auth Service 카나리 배포 시작..."
-                            kubectl argo rollouts set image auth-service-rollout \
+                            kubectl argo rollouts set image auth-service-rollout -n app \
                                 auth-service=${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG}
-                            kubectl argo rollouts promote auth-service-rollout
+                            kubectl argo rollouts promote auth-service-rollout -n app
                             
                             echo " User Service 카나리 배포 시작..."
-                            kubectl argo rollouts set image user-service-rollout \
+                            kubectl argo rollouts set image user-service-rollout -n app \
                                 user-service=${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG}
-                            kubectl argo rollouts promote user-service-rollout
+                            kubectl argo rollouts promote user-service-rollout -n app
                             
                             echo " Module Common 카나리 배포 시작..."
-                            kubectl argo rollouts set image module-common-rollout \
+                            kubectl argo rollouts set image module-common-rollout -n app \
                                 module-common=${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG}
-                            kubectl argo rollouts promote module-common-rollout
+                            kubectl argo rollouts promote module-common-rollout -n app
                             
                             echo " 모든 서비스 카나리 배포 시작 완료!"
                         '''
@@ -189,13 +189,13 @@ pipeline {
                     
                     sh '''
                         echo " Auth Service 롤아웃 상태 확인..."
-                        kubectl argo rollouts get rollout auth-service-rollout
+                        kubectl argo rollouts get rollout auth-service-rollout -n app
                         
                         echo " User Service 롤아웃 상태 확인..."
-                        kubectl argo rollouts get rollout user-service-rollout
+                        kubectl argo rollouts get rollout user-service-rollout -n app
                         
                         echo " Module Common 롤아웃 상태 확인..."
-                        kubectl argo rollouts get rollout module-common-rollout
+                        kubectl argo rollouts get rollout module-common-rollout -n app
                         
                         echo " 20분 대기 중... (카나리 배포 진행)"
                         sleep 1200
