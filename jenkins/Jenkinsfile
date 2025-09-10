@@ -2,10 +2,20 @@ pipeline {
     agent any
     
     environment {
-        // 브랜치명과 빌드번호를 조합한 의미있는 태그 생성
-        IMAGE_TAG = "${env.BRANCH_NAME ? env.BRANCH_NAME.replaceAll('/', '-') : 'main'}-${BUILD_NUMBER}"
-        // 또는 간단하게 jenkins 접두사 사용
-        // IMAGE_TAG = "jenkins-${BUILD_NUMBER}"
+        // Git 커밋 해시를 포함한 의미있는 태그 생성
+        GIT_COMMIT_SHORT = sh(
+            script: 'git rev-parse --short HEAD',
+            returnStdout: true
+        ).trim()
+
+        // 브랜치명 정리 (슬래시를 대시로 변경)
+        BRANCH_NAME_CLEAN = sh(
+            script: 'echo ${BRANCH_NAME} | sed "s/\\//-/g"',
+            returnStdout: true
+        ).trim()
+
+        // 최종 이미지 태그: 브랜치명-커밋해시 형식
+        IMAGE_TAG = "${BRANCH_NAME_CLEAN}-${GIT_COMMIT_SHORT}"
     }
     
     stages {
@@ -138,7 +148,7 @@ pipeline {
                                 }
                             } catch (Exception e) {
                                 echo "Auth Service 빌드 실패: ${e.getMessage()}"
-                                echo "하지만 다른 서비스는 계속 진행합���다."
+                                echo "하지만 다른 서비스는 계속 진행합니다."
                                 currentBuild.result = 'UNSTABLE'
                             }
                         }
