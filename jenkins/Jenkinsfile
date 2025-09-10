@@ -16,37 +16,51 @@ pipeline {
             }
         }
         
-        stage('Install Tools') {
+        stage('Setup Environment') {
             steps {
-                echo "필요한 도구들 설치 중..."
-                sh '''
-                    echo "AWS CLI 설치 중..."
-                    if ! command -v aws &> /dev/null; then
-                        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                        unzip awscliv2.zip
-                        ./aws/install
-                        rm -rf aws awscliv2.zip
-                    fi
-                    
-                    echo "Docker 설치 중..."
-                    if ! command -v docker &> /dev/null; then
-                        curl -fsSL https://get.docker.com -o get-docker.sh
-                        sh get-docker.sh
-                        rm get-docker.sh
-                    fi
-                    
-                    echo "kubectl 설치 중..."
-                    if ! command -v kubectl &> /dev/null; then
-                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                        chmod +x kubectl
-                        mv kubectl /usr/local/bin/
-                    fi
-                    
-                    echo "도구 설치 완료!"
-                    aws --version
-                    docker --version
-                    kubectl version --client
-                '''
+                echo "환경 설정 중..."
+                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
+                    sh '''
+                        echo "AWS CLI 설치 중..."
+                        if ! command -v aws &> /dev/null; then
+                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                            unzip awscliv2.zip
+                            ./aws/install
+                            rm -rf aws awscliv2.zip
+                        fi
+                        
+                        echo "Docker 설치 중..."
+                        if ! command -v docker &> /dev/null; then
+                            curl -fsSL https://get.docker.com -o get-docker.sh
+                            sh get-docker.sh
+                            rm get-docker.sh
+                        fi
+                        
+                        echo "kubectl 설치 중..."
+                        if ! command -v kubectl &> /dev/null; then
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                            mv kubectl /usr/local/bin/
+                        fi
+                        
+                        echo "설정 파일 로드 중..."
+                        source $CONFIG_FILE
+                        
+                        echo "AWS 자격 증명 설정 중..."
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        aws configure set default.region $AWS_REGION
+                        
+                        echo "Docker 데몬 시작 중..."
+                        sudo dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2376 &
+                        sleep 10
+                        
+                        echo "환경 설정 완료!"
+                        aws --version
+                        docker --version
+                        kubectl version --client
+                    '''
+                }
             }
         }
         
@@ -363,7 +377,7 @@ pipeline {
         }
         always {
             echo "빌드 완료. 리소스 정리 중..."
-            sh 'docker system prune -f || true'
+            sh 'docker system prune -f || true'스크립
         }
     }
 }
