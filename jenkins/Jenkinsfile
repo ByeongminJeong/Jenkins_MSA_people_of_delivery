@@ -51,10 +51,24 @@ pipeline {
                 sh '''
                     # Docker 데몬 시작
                     dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2376 &
-                    sleep 15
                     
-                    # Docker 상태 확인
+                    # Docker 데몬이 완전히 시작될 때까지 대기
+                    echo "Docker 데몬 시작 대기 중..."
+                    sleep 30
+                    
+                    # Docker 상태 확인 (재시도 로직)
                     echo "Docker 데몬 상태 확인..."
+                    for i in {1..10}; do
+                        if docker version >/dev/null 2>&1; then
+                            echo "Docker 데몬 연결 성공!"
+                            break
+                        else
+                            echo "Docker 데몬 연결 시도 $i/10..."
+                            sleep 5
+                        fi
+                    done
+                    
+                    # 최종 확인
                     docker version
                     docker ps
                     echo "Docker 데몬 시작 완료"
