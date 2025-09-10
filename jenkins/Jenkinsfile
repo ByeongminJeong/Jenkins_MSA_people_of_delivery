@@ -20,6 +20,13 @@ pipeline {
                     steps {
                         dir('auth-service') {
                             echo "Auth Service 빌드 중..."
+                            // Gradle Wrapper가 없으면 생성
+                            sh '''
+                                if [ ! -f "./gradlew" ]; then
+                                    echo "Gradle Wrapper가 없습니다. 생성 중..."
+                                    gradle wrapper --gradle-version=8.13
+                                fi
+                            '''
                             sh './gradlew clean build -x test'
                             
                             echo "Auth Service Docker 이미지 빌드 중..."
@@ -35,6 +42,13 @@ pipeline {
                     steps {
                         dir('user-service') {
                             echo " User Service 빌드 중..."
+                            // Gradle Wrapper가 없으면 생성
+                            sh '''
+                                if [ ! -f "./gradlew" ]; then
+                                    echo "Gradle Wrapper가 없습니다. 생성 중..."
+                                    gradle wrapper --gradle-version=8.13
+                                fi
+                            '''
                             sh './gradlew clean build -x test'
                             
                             echo " User Service Docker 이미지 빌드 중..."
@@ -50,6 +64,13 @@ pipeline {
                     steps {
                         dir('module-common') {
                             echo " Module Common 빌드 중..."
+                            // Gradle Wrapper가 없으면 생성
+                            sh '''
+                                if [ ! -f "./gradlew" ]; then
+                                    echo "Gradle Wrapper가 없습니다. 생성 중..."
+                                    gradle wrapper --gradle-version=8.13
+                                fi
+                            '''
                             sh './gradlew clean build -x test'
                             
                             echo " Module Common Docker 이미지 빌드 중..."

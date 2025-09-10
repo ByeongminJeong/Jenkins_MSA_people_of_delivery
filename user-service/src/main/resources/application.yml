@@ -1,6 +1,5 @@
 server:
   port: 8014
-
 management:
   endpoints:
     web:
