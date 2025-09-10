@@ -2,7 +2,10 @@ pipeline {
     agent any
     
     environment {
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        // 브랜치명과 빌드번호를 조합한 의미있는 태그 생성
+        IMAGE_TAG = "${env.BRANCH_NAME ? env.BRANCH_NAME.replaceAll('/', '-') : 'main'}-${BUILD_NUMBER}"
+        // 또는 간단하게 jenkins 접두사 사용
+        // IMAGE_TAG = "jenkins-${BUILD_NUMBER}"
     }
     
     stages {
@@ -223,7 +226,6 @@ pipeline {
                         # Auth Service Secret
                         /usr/local/bin/kubectl create secret generic auth-service-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
-                            --from-literal=redis-password="$REDIS_PASSWORD" \
                             --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
                             --from-literal=mail-password="$MAIL_PASSWORD" \
                             --from-literal=jwt-secret="$JWT_SECRET" \
@@ -246,7 +248,6 @@ pipeline {
                         # User Service Secret
                         /usr/local/bin/kubectl create secret generic user-service-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
-                            --from-literal=redis-password="$REDIS_PASSWORD" \
                             --from-literal=google-client-secret-id="$GOOGLE_CLIENT_SECRET_ID" \
                             --from-literal=mail-password="$MAIL_PASSWORD" \
                             --from-literal=jwt-secret="$JWT_SECRET" \
@@ -269,39 +270,49 @@ pipeline {
                         
                         echo "ConfigMap 및 Secret 생성 완료"
                         
-                        # Argo Rollouts 배포
+                        # Argo Rollouts 배포 - envsubst를 사용하여 환경변수 치환
                         if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                             echo "Argo Rollouts 배포 시작..."
-                            
-                            # Auth Service
-                            if /usr/local/bin/kubectl get rollout auth-service-rollout -n app >/dev/null 2>&1; then
-                                /usr/local/bin/kubectl argo rollouts set image auth-service-rollout -n app \
-                                    auth-service=$ECR_REGISTRY/$ECR_PREFIX/auth-service:$IMAGE_TAG
-                                /usr/local/bin/kubectl argo rollouts promote auth-service-rollout -n app
-                                echo "Auth Service 카나리 배포 완료"
+                            echo "환경변수 확인:"
+                            echo "ECR_REGISTRY: $ECR_REGISTRY"
+                            echo "ECR_PREFIX: $ECR_PREFIX"
+                            echo "IMAGE_TAG: $IMAGE_TAG"
+
+                            # 환경변수 export
+                            export ECR_REGISTRY ECR_PREFIX IMAGE_TAG
+
+                            # Auth Service Rollout 배포
+                            if [ -f "k8s/services/auth-service/auth-service-rollout.yaml" ]; then
+                                echo "Auth Service Rollout 배포 중..."
+                                envsubst < k8s/services/auth-service/auth-service-rollout.yaml | /usr/local/bin/kubectl apply -f -
+                                echo "Auth Service Rollout 배포 완료"
                             else
-                                echo "Auth Service Rollout 없음"
+                                echo "Auth Service Rollout 파일 없음"
                             fi
                             
-                            # User Service
-                            if /usr/local/bin/kubectl get rollout user-service-rollout -n app >/dev/null 2>&1; then
-                                /usr/local/bin/kubectl argo rollouts set image user-service-rollout -n app \
-                                    user-service=$ECR_REGISTRY/$ECR_PREFIX/user-service:$IMAGE_TAG
-                                /usr/local/bin/kubectl argo rollouts promote user-service-rollout -n app
-                                echo "User Service 카나리 배포 완료"
+                            # User Service Rollout 배포
+                            if [ -f "k8s/services/user-service/user-service-rollout.yaml" ]; then
+                                echo "User Service Rollout 배포 중..."
+                                envsubst < k8s/services/user-service/user-service-rollout.yaml | /usr/local/bin/kubectl apply -f -
+                                echo "User Service Rollout 배포 완료"
                             else
-                                echo "User Service Rollout 없음"
+                                echo "User Service Rollout 파일 없음"
                             fi
                             
-                            # Module Common
-                            if /usr/local/bin/kubectl get rollout module-common-rollout -n app >/dev/null 2>&1; then
-                                /usr/local/bin/kubectl argo rollouts set image module-common-rollout -n app \
-                                    module-common=$ECR_REGISTRY/$ECR_PREFIX/module-common:$IMAGE_TAG
-                                /usr/local/bin/kubectl argo rollouts promote module-common-rollout -n app
-                                echo "Module Common 카나리 배포 완료"
+                            # Module Common Rollout 배포
+                            if [ -f "k8s/services/module-common/module-common-rollout.yaml" ]; then
+                                echo "Module Common Rollout 배포 중..."
+                                envsubst < k8s/services/module-common/module-common-rollout.yaml | /usr/local/bin/kubectl apply -f -
+                                echo "Module Common Rollout 배포 완료"
                             else
-                                echo "Module Common Rollout 없음"
+                                echo "Module Common Rollout 파일 없음"
                             fi
+
+                            # Rollout 상태 확인
+                            echo "Rollout 상태 확인 중..."
+                            sleep 10
+                            /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 없음"
+
                         else
                             echo "Argo Rollouts 미설치"
                         fi
