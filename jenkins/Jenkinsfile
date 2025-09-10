@@ -19,10 +19,19 @@ pipeline {
                 configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                     script {
                         // ConfigFile Provider에서 환경변수 로드
-                        def props = readProperties file: env.CONFIG_FILE
-                        props.each { key, value ->
-                            env[key] = value
-                            echo "환경변수 설정: ${key} = ${value}"
+                        def configContent = readFile file: env.CONFIG_FILE
+                        def lines = configContent.split('\n')
+                        
+                        lines.each { line ->
+                            if (line.trim() && !line.startsWith('#')) {
+                                def parts = line.split('=', 2)
+                                if (parts.length == 2) {
+                                    def key = parts[0].trim()
+                                    def value = parts[1].trim()
+                                    env[key] = value
+                                    echo "환경변수 설정: ${key} = ${value}"
+                                }
+                            }
                         }
                         
                         // ECR_REGISTRY 설정 (ConfigFile 로드 후)
