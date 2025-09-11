@@ -11,29 +11,30 @@ pipeline {
         // 브랜치명 정리 및 안전한 태그 생성 (Jenkins 환경변수 우선 사용)
         BRANCH_NAME_CLEAN = sh(
             script: '''
-                echo "DEBUG - BRANCH_NAME: ${BRANCH_NAME:-empty}"
-                echo "DEBUG - GIT_BRANCH: ${GIT_BRANCH:-empty}"
-                echo "DEBUG - CHANGE_BRANCH: ${CHANGE_BRANCH:-empty}"
-                echo "DEBUG - Current HEAD: $(git rev-parse --short HEAD)"
-                echo "DEBUG - Current branch: $(git branch --show-current || echo 'detached')"
+                # 디버그 메시지는 stderr로 출력
+                echo "DEBUG - BRANCH_NAME: ${BRANCH_NAME:-empty}" >&2
+                echo "DEBUG - GIT_BRANCH: ${GIT_BRANCH:-empty}" >&2
+                echo "DEBUG - CHANGE_BRANCH: ${CHANGE_BRANCH:-empty}" >&2
+                echo "DEBUG - Current HEAD: $(git rev-parse --short HEAD)" >&2
+                echo "DEBUG - Current branch: $(git branch --show-current || echo 'detached')" >&2
 
                 # Jenkins 환경변수들 중에서 브랜치명 찾기
                 if [ -n "${CHANGE_BRANCH:-}" ]; then
                     CURRENT_BRANCH="${CHANGE_BRANCH}"
-                    echo "DEBUG - Using CHANGE_BRANCH: $CURRENT_BRANCH"
+                    echo "DEBUG - Using CHANGE_BRANCH: $CURRENT_BRANCH" >&2
                 elif [ -n "${GIT_BRANCH:-}" ]; then
                     CURRENT_BRANCH="${GIT_BRANCH}"
-                    echo "DEBUG - Using GIT_BRANCH: $CURRENT_BRANCH"
+                    echo "DEBUG - Using GIT_BRANCH: $CURRENT_BRANCH" >&2
                 elif [ -n "${BRANCH_NAME:-}" ]; then
                     CURRENT_BRANCH="${BRANCH_NAME}"
-                    echo "DEBUG - Using BRANCH_NAME: $CURRENT_BRANCH"
+                    echo "DEBUG - Using BRANCH_NAME: $CURRENT_BRANCH" >&2
                 else
                     # Git에서 직접 브랜치명 가져오기 (detached HEAD 상태 고려)
                     CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --exact-match 2>/dev/null || echo "detached-$(git rev-parse --short HEAD)")
-                    echo "DEBUG - Using git command: $CURRENT_BRANCH"
+                    echo "DEBUG - Using git command: $CURRENT_BRANCH" >&2
                 fi
 
-                echo "DEBUG - Selected branch: $CURRENT_BRANCH"
+                echo "DEBUG - Selected branch: $CURRENT_BRANCH" >&2
 
                 # origin/ 접두사 제거 및 특수문자 처리
                 CLEAN_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's|^origin/||' | sed 's|^refs/heads/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
@@ -49,7 +50,8 @@ pipeline {
                     esac
                 fi
 
-                echo "DEBUG - Final clean branch: $CLEAN_BRANCH"
+                echo "DEBUG - Final clean branch: $CLEAN_BRANCH" >&2
+                # 실제 결과값만 stdout으로 출력
                 echo "$CLEAN_BRANCH"
             ''',
             returnStdout: true
@@ -61,25 +63,27 @@ pipeline {
                 CLEAN_BRANCH="${BRANCH_NAME_CLEAN}"
                 COMMIT_SHORT="${GIT_COMMIT_SHORT}"
 
-                echo "DEBUG - Building tag with CLEAN_BRANCH: '$CLEAN_BRANCH', COMMIT_SHORT: '$COMMIT_SHORT'"
+                # 디버그 메시지는 stderr로 출력
+                echo "DEBUG - Building tag with CLEAN_BRANCH: '$CLEAN_BRANCH', COMMIT_SHORT: '$COMMIT_SHORT'" >&2
 
                 # 브랜치명과 커밋해시 모두 있는지 확인
                 if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ]; then
                     TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
                 else
-                    echo "ERROR: 브랜치명 또는 커밋해시를 가져올 수 없습니다"
-                    echo "CLEAN_BRANCH: '$CLEAN_BRANCH'"
-                    echo "COMMIT_SHORT: '$COMMIT_SHORT'"
+                    echo "ERROR: 브랜치명 또는 커밋해시를 가져올 수 없습니다" >&2
+                    echo "CLEAN_BRANCH: '$CLEAN_BRANCH'" >&2
+                    echo "COMMIT_SHORT: '$COMMIT_SHORT'" >&2
 
                     # 폴백: 현재 커밋 해시만 사용
                     FALLBACK_COMMIT=$(git rev-parse --short=7 HEAD)
                     TAG="build-${BUILD_NUMBER}-${FALLBACK_COMMIT}"
-                    echo "FALLBACK TAG: $TAG"
+                    echo "FALLBACK TAG: $TAG" >&2
                 fi
 
                 # 태그가 하이픈으로 시작하지 않도록 보장
                 FINAL_TAG=$(echo "$TAG" | sed 's/^-*//')
-                echo "DEBUG - Final tag: $FINAL_TAG"
+                echo "DEBUG - Final tag: $FINAL_TAG" >&2
+                # 실제 결과값만 stdout으로 출력
                 echo "$FINAL_TAG"
             ''',
             returnStdout: true
@@ -504,7 +508,7 @@ pipeline {
             echo "파이프라인 실패!"
             sh '''
                 echo "=== 디버깅 정보 ==="
-                /usr/local/bin/kubectl get all -n app || echo "app 네임스페이스 없음"
+                /usr/local/bin/kubectl get all -n app || echo "app 네임스���이스 없음"
                 /usr/local/bin/kubectl get events -n app --sort-by='.lastTimestamp' | tail -10 || echo "이벤트 없음"
                 
                 echo "=== Docker 상태 ==="
