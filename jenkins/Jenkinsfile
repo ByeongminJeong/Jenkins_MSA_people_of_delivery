@@ -43,25 +43,35 @@ pipeline {
             returnStdout: true
         ).trim()
 
-        // 안전한 이미지 태그 생성: 브랜치명-커밋해시 또는 build-빌드번호
+        // 안전한 이미지 태그 생성: 브랜치명-커밋해시
         IMAGE_TAG = sh(
             script: '''
                 CLEAN_BRANCH="${BRANCH_NAME_CLEAN:-main}"
                 COMMIT_SHORT="${GIT_COMMIT_SHORT}"
 
-                echo "DEBUG - Building tag with CLEAN_BRANCH: $CLEAN_BRANCH, COMMIT_SHORT: $COMMIT_SHORT"
+                # 커밋 해시가 비어있으면 다시 가져오기
+                if [ -z "$COMMIT_SHORT" ]; then
+                    COMMIT_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+                fi
 
-                # 태그 유효성 검사
-                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ] && [ "$CLEAN_BRANCH" != "main" ]; then
+                # 브랜치명이 비어있으면 다시 가져오기
+                if [ -z "$CLEAN_BRANCH" ] || [ "$CLEAN_BRANCH" = "main" ]; then
+                    if [ -n "${GIT_BRANCH}" ]; then
+                        CLEAN_BRANCH=$(echo "${GIT_BRANCH}" | sed 's|^origin/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
+                    else
+                        CLEAN_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//' || echo "main")
+                    fi
+                fi
+
+                # 최종 태그 생성
+                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ] && [ "$COMMIT_SHORT" != "unknown" ]; then
                     TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
                 else
                     TAG="build-${BUILD_NUMBER}"
                 fi
 
-                # 태그가 하이픈으로 시작하지 않도록 보장
-                FINAL_TAG=$(echo "$TAG" | sed 's/^-*//')
-                echo "DEBUG - Final tag: $FINAL_TAG"
-                echo "$FINAL_TAG"
+                # 태그가 하이픈으로 시작하지 않도록 보장하고 출력
+                echo "$TAG" | sed 's/^-*//'
             ''',
             returnStdout: true
         ).trim()
