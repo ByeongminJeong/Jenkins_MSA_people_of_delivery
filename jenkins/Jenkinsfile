@@ -4,34 +4,46 @@ pipeline {
     environment {
         // Git 커밋 해시를 포함한 의미있는 태그 생성
         GIT_COMMIT_SHORT = sh(
-            script: 'git rev-parse --short HEAD',
+            script: 'git rev-parse --short=7 HEAD',
             returnStdout: true
         ).trim()
 
-        // 브랜치명 정리 및 안전한 태그 생성
+        // 브랜치명 정리 및 안전한 태그 생성 (Jenkins 환경변수 우선 사용)
         BRANCH_NAME_CLEAN = sh(
             script: '''
                 echo "DEBUG - BRANCH_NAME: ${BRANCH_NAME:-empty}"
                 echo "DEBUG - GIT_BRANCH: ${GIT_BRANCH:-empty}"
                 echo "DEBUG - CHANGE_BRANCH: ${CHANGE_BRANCH:-empty}"
+                echo "DEBUG - Current HEAD: $(git rev-parse --short HEAD)"
+                echo "DEBUG - Current branch: $(git branch --show-current || echo 'detached')"
 
-                if [ -n "${CHANGE_BRANCH}" ]; then
+                # Jenkins 환경변수들 중에서 브랜치명 찾기
+                if [ -n "${CHANGE_BRANCH:-}" ]; then
                     CURRENT_BRANCH="${CHANGE_BRANCH}"
-                elif [ -n "${GIT_BRANCH}" ]; then
+                    echo "DEBUG - Using CHANGE_BRANCH: $CURRENT_BRANCH"
+                elif [ -n "${GIT_BRANCH:-}" ]; then
                     CURRENT_BRANCH="${GIT_BRANCH}"
-                elif [ -n "${BRANCH_NAME}" ]; then
+                    echo "DEBUG - Using GIT_BRANCH: $CURRENT_BRANCH"
+                elif [ -n "${BRANCH_NAME:-}" ]; then
                     CURRENT_BRANCH="${BRANCH_NAME}"
+                    echo "DEBUG - Using BRANCH_NAME: $CURRENT_BRANCH"
                 else
-                    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+                    # Git에서 직접 브랜치명 가져오기 (detached HEAD 상태 고려)
+                    CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --exact-match 2>/dev/null || echo "detached-$(git rev-parse --short HEAD)")
+                    echo "DEBUG - Using git command: $CURRENT_BRANCH"
                 fi
 
                 echo "DEBUG - Selected branch: $CURRENT_BRANCH"
-                CLEAN_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's|^origin/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
 
-                if [ -z "$CLEAN_BRANCH" ] || [ "$CLEAN_BRANCH" = "unknown" ]; then
-                    CLEAN_BRANCH="main"
+                # origin/ 접두사 제거 및 특수문자 처리
+                CLEAN_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's|^origin/||' | sed 's|^refs/heads/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
+
+                # 빈 값이거나 detached 상태면 현재 커밋 해시 사용
+                if [ -z "$CLEAN_BRANCH" ] || [[ "$CLEAN_BRANCH" =~ ^detached ]]; then
+                    CLEAN_BRANCH="commit-$(git rev-parse --short HEAD)"
                 fi
 
+                echo "DEBUG - Final clean branch: $CLEAN_BRANCH"
                 echo "$CLEAN_BRANCH"
             ''',
             returnStdout: true
@@ -40,17 +52,23 @@ pipeline {
         // 안전한 이미지 태그 생성: 브랜치명-커밋해시
         IMAGE_TAG = sh(
             script: '''
-                CLEAN_BRANCH="${BRANCH_NAME_CLEAN:-main}"
+                CLEAN_BRANCH="${BRANCH_NAME_CLEAN}"
                 COMMIT_SHORT="${GIT_COMMIT_SHORT}"
 
-                echo "DEBUG - Building tag with CLEAN_BRANCH: $CLEAN_BRANCH, COMMIT_SHORT: $COMMIT_SHORT"
+                echo "DEBUG - Building tag with CLEAN_BRANCH: '$CLEAN_BRANCH', COMMIT_SHORT: '$COMMIT_SHORT'"
 
-                # 브랜치명-커밋해시 형태로 태그 생성
+                # 브랜치명과 커밋해시 모두 있는지 확인
                 if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ]; then
                     TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
                 else
                     echo "ERROR: 브랜치명 또는 커밋해시를 가져올 수 없습니다"
-                    exit 1
+                    echo "CLEAN_BRANCH: '$CLEAN_BRANCH'"
+                    echo "COMMIT_SHORT: '$COMMIT_SHORT'"
+
+                    # 폴백: 현재 커밋 해시만 사용
+                    FALLBACK_COMMIT=$(git rev-parse --short=7 HEAD)
+                    TAG="build-${BUILD_NUMBER}-${FALLBACK_COMMIT}"
+                    echo "FALLBACK TAG: $TAG"
                 fi
 
                 # 태그가 하이픈으로 시작하지 않도록 보장
@@ -253,7 +271,7 @@ pipeline {
                             docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:$tag
                         done
 
-                        echo "User Service 빌드 완료"
+                        echo "User Service ���드 완료"
                         echo "생성된 태그들: ${IMAGE_TAG_VAR} ${ADDITIONAL_TAGS_VAR}"
                     '''
                 }
