@@ -325,8 +325,16 @@ pipeline {
                             echo "ECR_PREFIX: $ECR_PREFIX"
                             echo "IMAGE_TAG: $IMAGE_TAG"
 
-                            # 환경변수 export
-                            export ECR_REGISTRY ECR_PREFIX IMAGE_TAG
+                            # 환경변수 확인 및 export
+                            echo "환경변수 확인:"
+                            echo "ECR_REGISTRY: $ECR_REGISTRY"
+                            echo "ECR_PREFIX: $ECR_PREFIX"
+                            echo "IMAGE_TAG: $IMAGE_TAG"
+
+                            # 환경변수 올바르게 export
+                            export ECR_REGISTRY="$ECR_REGISTRY"
+                            export ECR_PREFIX="$ECR_PREFIX"
+                            export IMAGE_TAG="$IMAGE_TAG"
 
                             # Auth Service Rollout 배포
                             if [ -f "k8s/services/auth-service/auth-service-rollout.yaml" ]; then
