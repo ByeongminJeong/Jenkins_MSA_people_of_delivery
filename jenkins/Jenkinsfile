@@ -38,9 +38,15 @@ pipeline {
                 # origin/ 접두사 제거 및 특수문자 처리
                 CLEAN_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's|^origin/||' | sed 's|^refs/heads/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
 
-                # 빈 값이거나 detached 상태면 현재 커밋 해시 사용
-                if [ -z "$CLEAN_BRANCH" ] || [[ "$CLEAN_BRANCH" =~ ^detached ]]; then
+                # 빈 값이거나 detached 상태면 현재 커밋 해시 사용 (POSIX 호환 문법 사용)
+                if [ -z "$CLEAN_BRANCH" ]; then
                     CLEAN_BRANCH="commit-$(git rev-parse --short HEAD)"
+                else
+                    case "$CLEAN_BRANCH" in
+                        detached*)
+                            CLEAN_BRANCH="commit-$(git rev-parse --short HEAD)"
+                            ;;
+                    esac
                 fi
 
                 echo "DEBUG - Final clean branch: $CLEAN_BRANCH"
@@ -255,7 +261,7 @@ pipeline {
                         
                         # 추가 태그들 적용
                         for tag in ${ADDITIONAL_TAGS_VAR}; do
-                            echo "추가 태그 적용: $tag"
+                            echo "추가 태그 ��용: $tag"
                             docker tag ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} \
                                 ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:$tag
                         done
