@@ -88,38 +88,8 @@ pipeline {
             ''',
             returnStdout: true
         ).trim()
-
-        // 카나리 배포용 이미지 태그 (latest 사용)
-        CANARY_IMAGE_TAG = "latest"
-
-        // 추가 태그들 생성 (latest와 브랜치 기반 태그)
-        ADDITIONAL_TAGS = sh(
-            script: '''
-                # latest 태그와 함께 브랜치 기반 태그도 포함
-                CLEAN_BRANCH="${BRANCH_NAME_CLEAN}"
-                COMMIT_SHORT="${GIT_COMMIT_SHORT}"
-
-                # 브랜치 기반 태그 생성
-                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ]; then
-                    BRANCH_TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
-                else
-                    FALLBACK_COMMIT=$(git rev-parse --short=7 HEAD)
-                    BRANCH_TAG="build-${BUILD_NUMBER}-${FALLBACK_COMMIT}"
-                fi
-
-                # 태그가 하이픈으로 시작하지 않도록 보장
-                BRANCH_TAG=$(echo "$BRANCH_TAG" | sed 's/^-*//')
-
-                echo "DEBUG - Branch tag: $BRANCH_TAG" >&2
-                echo "DEBUG - Additional tags: latest $BRANCH_TAG" >&2
-
-                # latest와 브랜치 태그 모두 출력
-                echo "latest $BRANCH_TAG"
-            ''',
-            returnStdout: true
-        ).trim()
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
@@ -127,7 +97,7 @@ pipeline {
                 checkout scm
             }
         }
-        
+
         stage('Load Configuration') {
             steps {
                 echo "환경 설정 로드 중..."
@@ -135,23 +105,23 @@ pipeline {
                     sh '''
                         echo "설정 파일 로드 완료: $CONFIG_FILE"
                         . $CONFIG_FILE
-                        
+
                         echo "AWS Region: $AWS_REGION"
                         echo "AWS Account ID: $AWS_ACCOUNT_ID"
                         echo "ECR Prefix: $ECR_PREFIX"
                         echo "Image Tag: ${IMAGE_TAG}"
-                        
+
                         /usr/local/bin/aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
                         /usr/local/bin/aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
                         /usr/local/bin/aws configure set default.region $AWS_REGION
-                        
+
                         echo "AWS 설정 완료"
                         /usr/local/bin/aws sts get-caller-identity
                     '''
                 }
             }
         }
-        
+
         stage('Start Docker Daemon') {
             steps {
                 echo "Docker 데몬 시작 중..."
@@ -159,13 +129,13 @@ pipeline {
                     # 기존 Docker 프로세스 정리
                     pkill -f dockerd || true
                     sleep 5
-                    
+
                     # Docker 데몬 시작
                     dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2376 &
-                    
+
                     echo "Docker 데몬 시작 대기 중..."
                     sleep 30
-                    
+
                     # Docker 상태 확인
                     for i in {1..10}; do
                         if docker version >/dev/null 2>&1; then
@@ -176,31 +146,31 @@ pipeline {
                             sleep 5
                         fi
                     done
-                    
+
                     docker version
                     echo "Docker 데몬 시작 완료"
                 '''
             }
         }
-        
+
         stage('ECR Login') {
             steps {
                 echo "ECR 로그인 중..."
                 configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                     sh '''
                         . $CONFIG_FILE
-                        
+
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         echo "ECR Registry: $ECR_REGISTRY"
-                        
+
                         /usr/local/bin/aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
                         echo "ECR 로그인 성공"
                     '''
                 }
             }
         }
-        
-        // 순차 빌드로 변경 (메모리 제한 제거)
+
+        // 순차 빌드로 변경
         stage('Build and Push Auth Service') {
             steps {
                 echo "Auth Service 빌드 중..."
@@ -209,46 +179,27 @@ pipeline {
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
-                        export ADDITIONAL_TAGS_VAR="'''+ADDITIONAL_TAGS+'''"
 
                         echo "=== Auth Service 빌드 시작 ==="
                         echo "ECR_REGISTRY: ${ECR_REGISTRY}"
-                        echo "Main IMAGE_TAG: ${IMAGE_TAG_VAR}"
-                        echo "Additional TAGS: ${ADDITIONAL_TAGS_VAR}"
+                        echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
 
                         cd "${WORKSPACE}"
-                        
+
                         if [ -f "./gradlew" ]; then
                             chmod +x ./gradlew
                             echo "Auth Service Gradle 빌드..."
                             ./gradlew :auth-service:clean :auth-service:build -x test --no-daemon --stacktrace
-                            
-                            echo "Auth Service Docker 이미지 빌드..."
 
-                            # 메인 태그로 이미지 빌드
+                            echo "Auth Service Docker 이미지 빌드..."
                             docker build -f ./auth-service/Dockerfile \
                                 -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR} .
-                            
-                            # 추가 태그들 적용
-                            for tag in ${ADDITIONAL_TAGS_VAR}; do
-                                echo "추가 태그 적용: $tag"
-                                docker tag ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR} \
-                                    ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:$tag
-                            done
 
-                            echo "Auth Service ECR 푸시 (모든 태그)..."
-
-                            # 메인 태그 푸시
+                            echo "Auth Service ECR 푸시..."
                             docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR}
-                            
-                            # 추가 태그들 푸시
-                            for tag in ${ADDITIONAL_TAGS_VAR}; do
-                                echo "추가 태그 푸시: $tag"
-                                docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:$tag
-                            done
 
                             echo "Auth Service 빌드 완료"
-                            echo "생성된 태그들: ${IMAGE_TAG_VAR} ${ADDITIONAL_TAGS_VAR}"
+                            echo "생성된 태그: ${IMAGE_TAG_VAR}"
                         else
                             echo "ERROR: Gradle wrapper not found"
                             exit 1
@@ -257,7 +208,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build and Push User Service') {
             steps {
                 echo "User Service 빌드 중..."
@@ -266,49 +217,28 @@ pipeline {
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
-                        export ADDITIONAL_TAGS_VAR="'''+ADDITIONAL_TAGS+'''"
 
                         echo "=== User Service 빌드 시작 ==="
-                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
-                        echo "Main IMAGE_TAG: ${IMAGE_TAG_VAR}"
-                        echo "Additional TAGS: ${ADDITIONAL_TAGS_VAR}"
 
                         cd "${WORKSPACE}"
-                        
+
                         echo "User Service Gradle 빌드..."
                         ./gradlew :user-service:clean :user-service:build -x test --no-daemon --stacktrace
-                        
-                        echo "User Service Docker 이미지 빌드..."
 
-                        # 메인 태그로 이미지 빌드
+                        echo "User Service Docker 이미지 빌드..."
                         docker build -f ./user-service/Dockerfile \
                             -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} .
-                        
-                        # 추가 태그들 적용
-                        for tag in ${ADDITIONAL_TAGS_VAR}; do
-                            echo "추가 태그 ��용: $tag"
-                            docker tag ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} \
-                                ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:$tag
-                        done
 
-                        echo "User Service ECR ���시 (모든 태그)..."
-
-                        # 메인 태그 푸시
+                        echo "User Service ECR 푸시..."
                         docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR}
-                        
-                        # 추가 태그들 푸시
-                        for tag in ${ADDITIONAL_TAGS_VAR}; do
-                            echo "추가 태그 푸시: $tag"
-                            docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:$tag
-                        done
 
-                        echo "User Service ���드 완료"
-                        echo "생성된 태그들: ${IMAGE_TAG_VAR} ${ADDITIONAL_TAGS_VAR}"
+                        echo "User Service 빌드 완료"
+                        echo "생성된 태그: ${IMAGE_TAG_VAR}"
                     '''
                 }
             }
         }
-        
+
         stage('Build and Push Module Common') {
             steps {
                 echo "Module Common 빌드 중..."
@@ -317,49 +247,28 @@ pipeline {
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
-                        export ADDITIONAL_TAGS_VAR="'''+ADDITIONAL_TAGS+'''"
 
                         echo "=== Module Common 빌드 시작 ==="
-                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
-                        echo "Main IMAGE_TAG: ${IMAGE_TAG_VAR}"
-                        echo "Additional TAGS: ${ADDITIONAL_TAGS_VAR}"
 
                         cd "${WORKSPACE}"
-                        
+
                         echo "Module Common Gradle 빌드..."
                         ./gradlew :module-common:clean :module-common:build -x test --no-daemon --stacktrace
-                        
-                        echo "Module Common Docker 이미지 빌드..."
 
-                        # 메인 태그로 이미지 빌드
+                        echo "Module Common Docker 이미지 빌드..."
                         docker build -f ./module-common/Dockerfile \
                             -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR} .
-                        
-                        # 추가 태그들 적용
-                        for tag in ${ADDITIONAL_TAGS_VAR}; do
-                            echo "추가 태그 적용: $tag"
-                            docker tag ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR} \
-                                ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:$tag
-                        done
 
-                        echo "Module Common ECR 푸시 (모든 태그)..."
-
-                        # 메인 태그 푸시
+                        echo "Module Common ECR 푸시..."
                         docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR}
-                        
-                        # 추가 태그들 푸시
-                        for tag in ${ADDITIONAL_TAGS_VAR}; do
-                            echo "추가 태그 푸시: $tag"
-                            docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:$tag
-                        done
 
                         echo "Module Common 빌드 완료"
-                        echo "생성된 태그들: ${IMAGE_TAG_VAR} ${ADDITIONAL_TAGS_VAR}"
+                        echo "생성된 태그: ${IMAGE_TAG_VAR}"
                     '''
                 }
             }
         }
-        
+
         stage('Deploy Services') {
             steps {
                 echo "서비스 배포 시작"
@@ -367,16 +276,19 @@ pipeline {
                     sh '''
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                        
-                        echo "배�� 시작..."
+
+                        # 배포용 이미지 태그 (Jenkins 환경변수와 구분)
+                        export DEPLOY_IMAGE_TAG="$IMAGE_TAG"
+
+                        echo "배포 시작..."
                         echo "ECR Registry: $ECR_REGISTRY"
-                        echo "Image Tag: $IMAGE_TAG"
-                        
+                        echo "Deploy Image Tag: $DEPLOY_IMAGE_TAG"
+
                         # app 네임스페이스 생성
                         /usr/local/bin/kubectl create namespace app --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
-                        
+
                         echo "ConfigMap 및 Secret 생성 중..."
-                        
+
                         # Auth Service ConfigMap
                         /usr/local/bin/kubectl create configmap auth-service-config -n app \
                             --from-literal=db-url="$DB_URL" \
@@ -388,7 +300,7 @@ pipeline {
                             --from-literal=service-port="$AUTH_SERVICE_PORT" \
                             --from-literal=health-check-path="$AUTH_SERVICE_HEALTH_CHECK_PATH" \
                             --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
-                        
+
                         # Auth Service Secret
                         /usr/local/bin/kubectl create secret generic auth-service-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
@@ -398,7 +310,7 @@ pipeline {
                             --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
                             --from-literal=passport-secret="$AUTH_SERVICE_PASSPORT_SECRET" \
                             --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
-                        
+
                         # User Service ConfigMap
                         /usr/local/bin/kubectl create configmap user-service-config -n app \
                             --from-literal=db-url="$DB_URL" \
@@ -410,7 +322,7 @@ pipeline {
                             --from-literal=service-port="$USER_SERVICE_PORT" \
                             --from-literal=health-check-path="$USER_SERVICE_HEALTH_CHECK_PATH" \
                             --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
-                        
+
                         # User Service Secret
                         /usr/local/bin/kubectl create secret generic user-service-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
@@ -420,7 +332,7 @@ pipeline {
                             --from-literal=jwt-refresh-secret="$JWT_REFRESH_SECRET" \
                             --from-literal=passport-secret="$USER_SERVICE_PASSPORT_SECRET" \
                             --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
-                        
+
                         # Module Common ConfigMap
                         /usr/local/bin/kubectl create configmap module-common-config -n app \
                             --from-literal=db-url="$DB_URL" \
@@ -428,27 +340,27 @@ pipeline {
                             --from-literal=service-port="$MODULE_COMMON_SERVICE_PORT" \
                             --from-literal=health-check-path="$MODULE_COMMON_SERVICE_HEALTH_CHECK_PATH" \
                             --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
-                        
+
                         # Module Common Secret
                         /usr/local/bin/kubectl create secret generic module-common-secrets -n app \
                             --from-literal=db-password="$DB_PASSWORD" \
                             --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
-                        
+
                         echo "ConfigMap 및 Secret 생성 완료"
 
                         # Argo Rollouts 배포 확인
                         if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                             echo "Argo Rollouts 배포 시작..."
-                            
-                            # 환경변수 export - 카���리 배포에는 latest 태그 사용
+
+                            # 환경변수 export - 실제 빌드된 태그 사용
                             export ECR_REGISTRY="$ECR_REGISTRY"
                             export ECR_PREFIX="$ECR_PREFIX"
-                            export IMAGE_TAG="latest"  # 카나리 배포용 latest 태그 사용
+                            export IMAGE_TAG="$DEPLOY_IMAGE_TAG"
 
                             echo "환경변수 확인:"
                             echo "ECR_REGISTRY: $ECR_REGISTRY"
                             echo "ECR_PREFIX: $ECR_PREFIX"
-                            echo "IMAGE_TAG: $IMAGE_TAG (카나리 배포용)"
+                            echo "IMAGE_TAG: $IMAGE_TAG (빌드된 특정 태그)"
 
                             # Rollout 파일들 배포
                             for service in auth-service user-service module-common; do
@@ -464,7 +376,7 @@ pipeline {
                                     find k8s -name "*rollout*" -type f || echo "rollout 파일 없음"
                                 fi
                             done
-                            
+
                             # Rollout 상태 확인
                             echo "Rollout 상태 확인 중..."
                             sleep 10
@@ -474,28 +386,28 @@ pipeline {
                             echo "사용 가능한 CRD 확인:"
                             /usr/local/bin/kubectl get crd | grep -i rollout || echo "rollout CRD 없음"
                         fi
-                        
+
                         echo "배포 완료"
                     '''
                 }
             }
         }
-        
+
         stage('Verify Deployment') {
             steps {
                 echo "배포 상태 확인 중..."
                 sh '''
                     echo "=== 배포 상태 확인 ==="
                     /usr/local/bin/kubectl get all -n app
-                    
+
                     echo "=== ConfigMap 및 Secret 확인 ==="
                     /usr/local/bin/kubectl get configmaps,secrets -n app
-                    
+
                     echo "=== Rollout 확인 ==="
                     if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                         /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 리소스 없음"
-                        
-                        # 개별 Rollout 상��� 확인
+
+                        # 개별 Rollout 상태 확인
                         for rollout in auth-service-rollout user-service-rollout module-common-rollout; do
                             if /usr/local/bin/kubectl get rollout $rollout -n app >/dev/null 2>&1; then
                                 echo "=== $rollout 상태 ==="
@@ -505,16 +417,69 @@ pipeline {
                     else
                         echo "Argo Rollouts CRD 없음"
                     fi
-                    
+
                     echo "=== 이벤트 확인 ==="
                     /usr/local/bin/kubectl get events -n app --sort-by='.lastTimestamp' | tail -20 || echo "이벤트 없음"
-                    
+
                     echo "=== 배포 확인 완료 ==="
                 '''
             }
         }
+
+        stage('Tag latest after Promotion') {
+            steps {
+                echo "프로모션 성공 시 latest 태그로 반영"
+                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
+                    sh '''
+                        . $CONFIG_FILE
+                        export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+                        promote_and_tag() {
+                            svc="$1"
+                            image_path="${ECR_REGISTRY}/${ECR_PREFIX}/${svc}"
+
+                            echo "=== ${svc} 프로모션 상태 확인 ==="
+
+                            # Rollout 상태 정확히 체크
+                            rollout_status=$(/usr/local/bin/kubectl get rollout ${svc}-rollout -n app -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+
+                            if [ "$rollout_status" = "Healthy" ]; then
+                                echo "${svc} 프로모션 완료 확인됨. latest로 태깅"
+
+                                # 이미지 pull 시도 (없으면 로컬에서 태깅)
+                                if docker pull ${image_path}:${IMAGE_TAG}; then
+                                    echo "${svc} 이미지 pull 성공"
+                                else
+                                    echo "${svc} 이미지 pull 실패, 로컬에서 태깅 시도"
+                                fi
+
+                                # latest 태깅 및 푸시
+                                docker tag ${image_path}:${IMAGE_TAG} ${image_path}:latest
+                                docker push ${image_path}:latest
+                                echo "${svc} latest 태그 완료: ${image_path}:latest"
+
+                            elif [ "$rollout_status" = "Progressing" ]; then
+                                echo "${svc} 아직 진행 중 (Progressing). latest 태그 스킵"
+                            elif [ "$rollout_status" = "Paused" ]; then
+                                echo "${svc} 일시정지 상태 (Paused). latest 태그 스킵"
+                            elif [ "$rollout_status" = "Degraded" ]; then
+                                echo "${svc} 성능 저하 상태 (Degraded). latest 태그 스킵"
+                            else
+                                echo "${svc} 상태: $rollout_status. latest 태그 스킵"
+                            fi
+                        }
+
+                        echo "프로모션 상태 확인 시작..."
+                        promote_and_tag auth-service
+                        promote_and_tag user-service
+                        promote_and_tag module-common
+                        echo "프로모션 확인 완료"
+                    '''
+                }
+            }
+        }
     }
-    
+
     post {
         success {
             echo "전체 파이프라인 성공!"
@@ -523,25 +488,35 @@ pipeline {
                 /usr/local/bin/kubectl get pods -n app
                 echo "=== 사용된 이미지 확인 ==="
                 /usr/local/bin/kubectl get pods -n app -o jsonpath="{.items[*].spec.containers[*].image}" | tr " " "\\n" | sort | uniq
+                echo "=== Rollout 최종 상태 ==="
+                /usr/local/bin/kubectl get rollouts -n app -o wide || echo "Rollout 없음"
             '''
         }
         failure {
             echo "파이프라인 실패!"
             sh '''
                 echo "=== 디버깅 정보 ==="
-                /usr/local/bin/kubectl get all -n app || echo "app 네임스���이스 없음"
+                /usr/local/bin/kubectl get all -n app || echo "app 네임스페이스 없음"
                 /usr/local/bin/kubectl get events -n app --sort-by='.lastTimestamp' | tail -10 || echo "이벤트 없음"
-                
+
                 echo "=== Docker 상태 ==="
                 docker ps -a || echo "Docker 없음"
-                
+
                 echo "=== 시스템 리소스 ==="
                 free -h || echo "메모리 정보 없음"
                 df -h || echo "디스크 정보 없음"
+
+                echo "=== Rollout 실패 상태 ==="
+                /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 없음"
             '''
         }
         always {
             echo "파이프라인 정리 완료"
+            sh '''
+                # Docker 이미지 정리 (선택사항)
+                docker system prune -f || true
+                echo "정리 작업 완료"
+            '''
         }
     }
 }
