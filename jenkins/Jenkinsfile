@@ -89,11 +89,32 @@ pipeline {
             returnStdout: true
         ).trim()
 
-        // 추가 태그들 생성 (latest만)
+        // 카나리 배포용 이미지 태그 (latest 사용)
+        CANARY_IMAGE_TAG = "latest"
+
+        // 추가 태그들 생성 (latest와 브랜치 기반 태그)
         ADDITIONAL_TAGS = sh(
             script: '''
-                # 항상 latest 태그만 추가
-                echo "latest"
+                # latest 태그와 함께 브랜치 기반 태그도 포함
+                CLEAN_BRANCH="${BRANCH_NAME_CLEAN}"
+                COMMIT_SHORT="${GIT_COMMIT_SHORT}"
+
+                # 브랜치 기반 태그 생성
+                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ]; then
+                    BRANCH_TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
+                else
+                    FALLBACK_COMMIT=$(git rev-parse --short=7 HEAD)
+                    BRANCH_TAG="build-${BUILD_NUMBER}-${FALLBACK_COMMIT}"
+                fi
+
+                # 태그가 하이픈으로 시작하지 않도록 보장
+                BRANCH_TAG=$(echo "$BRANCH_TAG" | sed 's/^-*//')
+
+                echo "DEBUG - Branch tag: $BRANCH_TAG" >&2
+                echo "DEBUG - Additional tags: latest $BRANCH_TAG" >&2
+
+                # latest와 브랜치 태그 모두 출력
+                echo "latest $BRANCH_TAG"
             ''',
             returnStdout: true
         ).trim()
@@ -347,7 +368,7 @@ pipeline {
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         
-                        echo "배포 시작..."
+                        echo "배�� 시작..."
                         echo "ECR Registry: $ECR_REGISTRY"
                         echo "Image Tag: $IMAGE_TAG"
                         
@@ -419,16 +440,16 @@ pipeline {
                         if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                             echo "Argo Rollouts 배포 시작..."
                             
-                            # 환경변수 export
+                            # 환경변수 export - 카���리 배포에는 latest 태그 사용
                             export ECR_REGISTRY="$ECR_REGISTRY"
                             export ECR_PREFIX="$ECR_PREFIX"
-                            export IMAGE_TAG="$IMAGE_TAG"
-                            
+                            export IMAGE_TAG="latest"  # 카나리 배포용 latest 태그 사용
+
                             echo "환경변수 확인:"
                             echo "ECR_REGISTRY: $ECR_REGISTRY"
                             echo "ECR_PREFIX: $ECR_PREFIX"
-                            echo "IMAGE_TAG: $IMAGE_TAG"
-                            
+                            echo "IMAGE_TAG: $IMAGE_TAG (카나리 배포용)"
+
                             # Rollout 파일들 배포
                             for service in auth-service user-service module-common; do
                                 rollout_file="k8s/services/$service/$service-rollout.yaml"
@@ -474,7 +495,7 @@ pipeline {
                     if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                         /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 리소스 없음"
                         
-                        # 개별 Rollout 상태 확인
+                        # 개별 Rollout 상��� 확인
                         for rollout in auth-service-rollout user-service-rollout module-common-rollout; do
                             if /usr/local/bin/kubectl get rollout $rollout -n app >/dev/null 2>&1; then
                                 echo "=== $rollout 상태 ==="
