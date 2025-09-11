@@ -168,15 +168,15 @@ spec:
               name: user-service-secrets
               key: passport-secret
 
-        # 리소스 제한
+        # 리소스 제한 (Spring Boot에 적합하게 증가)
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
+            memory: "512Mi"
             cpu: "200m"
-        
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
         # 헬스체크
         livenessProbe:
           httpGet:
@@ -195,3 +195,13 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3
+
+        # 시작 프로브 (Spring Boot 시작 시간 고려하여 연장)
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8014
+          initialDelaySeconds: 60  # 1분으로 연장
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 20     # 최대 5분 대기 (15초 * 20회)
