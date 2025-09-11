@@ -8,15 +8,13 @@ pipeline {
             returnStdout: true
         ).trim()
 
-        // 브랜치명 정리 및 안전한 태그 생성 (Jenkins 환경변수 우선 사용)
+        // 브랜치명 정리 및 안전한 태그 생성
         BRANCH_NAME_CLEAN = sh(
             script: '''
-                # Jenkins 환경변수들 확인
                 echo "DEBUG - BRANCH_NAME: ${BRANCH_NAME:-empty}"
                 echo "DEBUG - GIT_BRANCH: ${GIT_BRANCH:-empty}"
                 echo "DEBUG - CHANGE_BRANCH: ${CHANGE_BRANCH:-empty}"
 
-                # 브랜치명 결정 (우선순위: CHANGE_BRANCH > GIT_BRANCH > BRANCH_NAME)
                 if [ -n "${CHANGE_BRANCH}" ]; then
                     CURRENT_BRANCH="${CHANGE_BRANCH}"
                 elif [ -n "${GIT_BRANCH}" ]; then
@@ -24,16 +22,12 @@ pipeline {
                 elif [ -n "${BRANCH_NAME}" ]; then
                     CURRENT_BRANCH="${BRANCH_NAME}"
                 else
-                    # Git에서 직접 브랜치명 가져오기
                     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
                 fi
 
                 echo "DEBUG - Selected branch: $CURRENT_BRANCH"
-
-                # origin/ 접두사 제거 및 특수문자 처리
                 CLEAN_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's|^origin/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
 
-                # 빈 값이면 기본값 사용
                 if [ -z "$CLEAN_BRANCH" ] || [ "$CLEAN_BRANCH" = "unknown" ]; then
                     CLEAN_BRANCH="main"
                 fi
@@ -43,18 +37,16 @@ pipeline {
             returnStdout: true
         ).trim()
 
-        // 안전한 이미지 태그 생성: 브랜치명-커밋해시
+        // 안전한 이미지 태그 생성
         IMAGE_TAG = sh(
             script: '''
                 CLEAN_BRANCH="${BRANCH_NAME_CLEAN:-main}"
                 COMMIT_SHORT="${GIT_COMMIT_SHORT}"
 
-                # 커밋 해시가 비어있으면 다시 가져오기
                 if [ -z "$COMMIT_SHORT" ]; then
                     COMMIT_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
                 fi
 
-                # 브랜치명이 비어있으면 다시 가져오기
                 if [ -z "$CLEAN_BRANCH" ] || [ "$CLEAN_BRANCH" = "main" ]; then
                     if [ -n "${GIT_BRANCH}" ]; then
                         CLEAN_BRANCH=$(echo "${GIT_BRANCH}" | sed 's|^origin/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
@@ -63,14 +55,12 @@ pipeline {
                     fi
                 fi
 
-                # 최종 태그 생성
                 if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ] && [ "$COMMIT_SHORT" != "unknown" ]; then
                     TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
                 else
                     TAG="build-${BUILD_NUMBER}"
                 fi
 
-                # 태그가 하이픈으로 시작하지 않도록 보장하고 출력
                 echo "$TAG" | sed 's/^-*//'
             ''',
             returnStdout: true
@@ -91,21 +81,13 @@ pipeline {
                 configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
                     sh '''
                         echo "설정 파일 로드 완료: $CONFIG_FILE"
-                        
-                        # 설정 파일 내용 로드
                         . $CONFIG_FILE
                         
-                        # 주요 설정값들 확인 (비밀번호 제외)
                         echo "AWS Region: $AWS_REGION"
                         echo "AWS Account ID: $AWS_ACCOUNT_ID"
                         echo "ECR Prefix: $ECR_PREFIX"
-                        echo "Auth Service Port: $AUTH_SERVICE_PORT"
-                        echo "User Service Port: $USER_SERVICE_PORT"
-                        echo "Module Common Port: $MODULE_COMMON_SERVICE_PORT"
-                        echo "DB URL: $DB_URL"
-                        echo "Redis Host: $REDIS_HOST"
+                        echo "Image Tag: ${IMAGE_TAG}"
                         
-                        # AWS 설정
                         /usr/local/bin/aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
                         /usr/local/bin/aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
                         /usr/local/bin/aws configure set default.region $AWS_REGION
@@ -121,15 +103,17 @@ pipeline {
             steps {
                 echo "Docker 데몬 시작 중..."
                 sh '''
+                    # 기존 Docker 프로세스 정리
+                    pkill -f dockerd || true
+                    sleep 5
+                    
                     # Docker 데몬 시작
                     dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2376 &
                     
-                    # Docker 데몬이 완전히 시작될 때까지 대기
                     echo "Docker 데몬 시작 대기 중..."
                     sleep 30
                     
-                    # Docker 상태 확인 (재시도 로직)
-                    echo "Docker 데몬 상태 확인..."
+                    # Docker 상태 확인
                     for i in {1..10}; do
                         if docker version >/dev/null 2>&1; then
                             echo "Docker 데몬 연결 성공!"
@@ -140,9 +124,7 @@ pipeline {
                         fi
                     done
                     
-                    # 최종 확인
                     docker version
-                    docker ps
                     echo "Docker 데몬 시작 완료"
                 '''
             }
@@ -165,170 +147,100 @@ pipeline {
             }
         }
         
-        stage('Build and Push Images') {
-            parallel {
-                stage('Build Auth Service') {
-                    steps {
-                        script {
-                            try {
-                                echo "Auth Service 빌드 중..."
-                                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
-                                    sh '''
-                                        # 설정 파일 로드
-                                        . $CONFIG_FILE
+        // 순차 빌드로 변경 (메모리 제한 제거)
+        stage('Build and Push Auth Service') {
+            steps {
+                echo "Auth Service 빌드 중..."
+                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
+                    sh '''
+                        . $CONFIG_FILE
+                        export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                        export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
 
-                                        # 환경변수 명시적 설정 및 확인
-                                        export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                                        export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
+                        echo "=== Auth Service 빌드 시작 ==="
+                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
+                        echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
 
-                                        # 디버깅을 위한 환경변수 출력
-                                        echo "=== Auth Service 환경변수 확인 ==="
-                                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
-                                        echo "ECR_PREFIX: ${ECR_PREFIX}"
-                                        echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
-                                        echo "현재 작업 디렉터리: $(pwd)"
-                                        echo "================================"
-
-                                        # 루트 디렉터리로 명시적 이동
-                                        cd "${WORKSPACE}"
-                                        echo "루트 디렉토리로 이동: $(pwd)"
-                                        echo "루트 디렉토리 파일들: $(ls -la | head -10)"
-
-                                        # Gradle wrapper 존재 확인
-                                        if [ -f "./gradlew" ]; then
-                                            chmod +x ./gradlew
-                                            echo "Auth Service Gradle 빌드 시작..."
-                                            ./gradlew :auth-service:clean :auth-service:build -x test --no-daemon --stacktrace
-                                        else
-                                            echo "ERROR: Gradle wrapper not found in root directory"
-                                            echo "Available files: $(ls -la)"
-                                            exit 1
-                                        fi
-
-                                        echo "Auth Service Docker 이미지 빌드..."
-                                        docker build -f ./auth-service/Dockerfile -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR} .
-
-                                        echo "Auth Service ECR 푸시..."
-                                        docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR}
-
-                                        echo "Auth Service 완료"
-                                    '''
-                                }
-                            } catch (Exception e) {
-                                echo "Auth Service 빌드 실패: ${e.getMessage()}"
-                                echo "하지만 다른 서비스는 계속 진행합니다."
-                                currentBuild.result = 'UNSTABLE'
-                            }
-                        }
-                    }
+                        cd "${WORKSPACE}"
+                        
+                        if [ -f "./gradlew" ]; then
+                            chmod +x ./gradlew
+                            echo "Auth Service Gradle 빌드..."
+                            
+                            # 메모리 제한 없이 빌드 (데몬 비활성화로 메모리 최적화)
+                            ./gradlew :auth-service:clean :auth-service:build -x test --no-daemon --stacktrace
+                            
+                            echo "Auth Service Docker 이미지 빌드..."
+                            docker build -f ./auth-service/Dockerfile \
+                                -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR} .
+                            
+                            echo "Auth Service ECR 푸시..."
+                            docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR}
+                            
+                            echo "Auth Service 빌드 완료"
+                        else
+                            echo "ERROR: Gradle wrapper not found"
+                            exit 1
+                        fi
+                    '''
                 }
-                
-                stage('Build User Service') {
-                    steps {
-                        script {
-                            try {
-                                echo "User Service 빌드 중..."
-                                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
-                                    sh '''
-                                        # 설정 파일 로드
-                                        . $CONFIG_FILE
+            }
+        }
+        
+        stage('Build and Push User Service') {
+            steps {
+                echo "User Service 빌드 중..."
+                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
+                    sh '''
+                        . $CONFIG_FILE
+                        export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                        export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
 
-                                        # 환경변수 명시적 설정 및 확인
-                                        export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                                        export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
-
-                                        # 디버깅을 위한 환경변수 출력
-                                        echo "=== User Service 환경변수 확인 ==="
-                                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
-                                        echo "ECR_PREFIX: ${ECR_PREFIX}"
-                                        echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
-                                        echo "현재 작업 디렉터리: $(pwd)"
-                                        echo "================================"
-
-                                        # 루트 디렉터리로 명시적 이동
-                                        cd "${WORKSPACE}"
-                                        echo "루트 디렉토리로 이동: $(pwd)"
-
-                                        # Gradle wrapper 존재 확인 및 User Service 빌드
-                                        if [ -f "./gradlew" ]; then
-                                            chmod +x ./gradlew
-                                            echo "User Service Gradle 빌드 시작..."
-                                            ./gradlew :user-service:clean :user-service:build -x test --no-daemon --stacktrace
-                                        else
-                                            echo "ERROR: Gradle wrapper not found in root directory"
-                                            exit 1
-                                        fi
-
-                                        echo "User Service Docker 이미지 빌드..."
-                                        docker build -f ./user-service/Dockerfile -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} .
-
-                                        echo "User Service ECR 푸시..."
-                                        docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR}
-
-                                        echo "User Service 완료"
-                                    '''
-                                }
-                            } catch (Exception e) {
-                                echo "User Service 빌드 실패: ${e.getMessage()}"
-                                echo "하지만 다른 서비스는 계속 진행합니다."
-                                currentBuild.result = 'UNSTABLE'
-                            }
-                        }
-                    }
+                        echo "=== User Service 빌드 시작 ==="
+                        
+                        cd "${WORKSPACE}"
+                        
+                        echo "User Service Gradle 빌드..."
+                        ./gradlew :user-service:clean :user-service:build -x test --no-daemon --stacktrace
+                        
+                        echo "User Service Docker 이미지 빌드..."
+                        docker build -f ./user-service/Dockerfile \
+                            -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} .
+                        
+                        echo "User Service ECR 푸시..."
+                        docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR}
+                        
+                        echo "User Service 빌드 완료"
+                    '''
                 }
-                
-                stage('Build Module Common') {
-                    steps {
-                        script {
-                            try {
-                                echo "Module Common 빌드 중..."
-                                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
-                                    sh '''
-                                        # 설정 파일 로드
-                                        . $CONFIG_FILE
+            }
+        }
+        
+        stage('Build and Push Module Common') {
+            steps {
+                echo "Module Common 빌드 중..."
+                configFileProvider([configFile(fileId: 'all-services', variable: 'CONFIG_FILE')]) {
+                    sh '''
+                        . $CONFIG_FILE
+                        export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                        export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
 
-                                        # 환경변수 명시적 설정 및 확인
-                                        export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                                        export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
-
-                                        # 디버깅을 위한 환경변수 출력
-                                        echo "=== Module Common 환경변수 확인 ==="
-                                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
-                                        echo "ECR_PREFIX: ${ECR_PREFIX}"
-                                        echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
-                                        echo "현재 작업 디렉터리: $(pwd)"
-                                        echo "===================================="
-
-                                        # 루트 디렉터리로 명시적 이동
-                                        cd "${WORKSPACE}"
-                                        echo "루트 디렉토리로 이동: $(pwd)"
-
-                                        # Gradle wrapper 존재 확인 및 Module Common 빌드
-                                        if [ -f "./gradlew" ]; then
-                                            chmod +x ./gradlew
-                                            echo "Module Common Gradle 빌드 시작..."
-                                            ./gradlew :module-common:clean :module-common:build -x test --no-daemon --stacktrace
-                                        else
-                                            echo "ERROR: Gradle wrapper not found in root directory"
-                                            exit 1
-                                        fi
-
-                                        echo "Module Common Docker 이미지 빌드..."
-                                        docker build -f ./module-common/Dockerfile -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR} .
-
-                                        echo "Module Common ECR 푸시..."
-                                        docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR}
-
-                                        echo "Module Common 완료"
-                                    '''
-                                }
-                            } catch (Exception e) {
-                                echo "Module Common 빌드 실패: ${e.getMessage()}"
-                                echo "하지만 다른 서비스는 계속 진행합니다."
-                                currentBuild.result = 'UNSTABLE'
-                            }
-                        }
-                    }
+                        echo "=== Module Common 빌드 시작 ==="
+                        
+                        cd "${WORKSPACE}"
+                        
+                        echo "Module Common Gradle 빌드..."
+                        ./gradlew :module-common:clean :module-common:build -x test --no-daemon --stacktrace
+                        
+                        echo "Module Common Docker 이미지 빌드..."
+                        docker build -f ./module-common/Dockerfile \
+                            -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR} .
+                        
+                        echo "Module Common ECR 푸시..."
+                        docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR}
+                        
+                        echo "Module Common 빌드 완료"
+                    '''
                 }
             }
         }
@@ -347,6 +259,8 @@ pipeline {
                         
                         # app 네임스페이스 생성
                         /usr/local/bin/kubectl create namespace app --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
+                        
+                        echo "ConfigMap 및 Secret 생성 중..."
                         
                         # Auth Service ConfigMap
                         /usr/local/bin/kubectl create configmap auth-service-config -n app \
@@ -407,64 +321,43 @@ pipeline {
                         
                         echo "ConfigMap 및 Secret 생성 완료"
                         
-                        # Argo Rollouts 배포 - envsubst를 사용하여 환경변수 치환
+                        # Argo Rollouts 배포 확인
                         if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                             echo "Argo Rollouts 배포 시작..."
-                            echo "환경변수 확인:"
-                            echo "ECR_REGISTRY: $ECR_REGISTRY"
-                            echo "ECR_PREFIX: $ECR_PREFIX"
-                            echo "IMAGE_TAG: $IMAGE_TAG"
-
-                            # 환경변수 확인 및 export
-                            echo "환경변수 확인:"
-                            echo "ECR_REGISTRY: $ECR_REGISTRY"
-                            echo "ECR_PREFIX: $ECR_PREFIX"
-                            echo "IMAGE_TAG: $IMAGE_TAG"
-
-                            # 환경변수 올바르게 export
+                            
+                            # 환경변수 export
                             export ECR_REGISTRY="$ECR_REGISTRY"
                             export ECR_PREFIX="$ECR_PREFIX"
                             export IMAGE_TAG="$IMAGE_TAG"
                             
-                            # envsubst가 인식할 수 있도록 환경변수 재설정
-                            ECR_REGISTRY="$ECR_REGISTRY"
-                            ECR_PREFIX="$ECR_PREFIX"
-                            IMAGE_TAG="$IMAGE_TAG"
-
-                            # Auth Service Rollout 배포
-                            if [ -f "k8s/services/auth-service/auth-service-rollout.yaml" ]; then
-                                echo "Auth Service Rollout 배포 중..."
-                                envsubst '$ECR_REGISTRY $ECR_PREFIX $IMAGE_TAG' < k8s/services/auth-service/auth-service-rollout.yaml | /usr/local/bin/kubectl apply -f -
-                                echo "Auth Service Rollout 배포 완료"
-                            else
-                                echo "Auth Service Rollout 파일 없음"
-                            fi
+                            echo "환경변수 확인:"
+                            echo "ECR_REGISTRY: $ECR_REGISTRY"
+                            echo "ECR_PREFIX: $ECR_PREFIX"
+                            echo "IMAGE_TAG: $IMAGE_TAG"
                             
-                            # User Service Rollout 배포
-                            if [ -f "k8s/services/user-service/user-service-rollout.yaml" ]; then
-                                echo "User Service Rollout 배포 중..."
-                                envsubst '$ECR_REGISTRY $ECR_PREFIX $IMAGE_TAG' < k8s/services/user-service/user-service-rollout.yaml | /usr/local/bin/kubectl apply -f -
-                                echo "User Service Rollout 배포 완료"
-                            else
-                                echo "User Service Rollout 파일 없음"
-                            fi
+                            # Rollout 파일들 배포
+                            for service in auth-service user-service module-common; do
+                                rollout_file="k8s/services/$service/$service-rollout.yaml"
+                                if [ -f "$rollout_file" ]; then
+                                    echo "$service Rollout 배포 중..."
+                                    echo "파일 위치: $rollout_file"
+                                    envsubst '$ECR_REGISTRY $ECR_PREFIX $IMAGE_TAG' < "$rollout_file" | /usr/local/bin/kubectl apply -f -
+                                    echo "$service Rollout 배포 완료"
+                                else
+                                    echo "$service Rollout 파일 없음: $rollout_file"
+                                    echo "사용 가능한 파일들:"
+                                    find k8s -name "*rollout*" -type f || echo "rollout 파일 없음"
+                                fi
+                            done
                             
-                            # Module Common Rollout 배포
-                            if [ -f "k8s/services/module-common/module-common-rollout.yaml" ]; then
-                                echo "Module Common Rollout 배포 중..."
-                                envsubst '$ECR_REGISTRY $ECR_PREFIX $IMAGE_TAG' < k8s/services/module-common/module-common-rollout.yaml | /usr/local/bin/kubectl apply -f -
-                                echo "Module Common Rollout 배포 완료"
-                            else
-                                echo "Module Common Rollout 파일 없음"
-                            fi
-
                             # Rollout 상태 확인
                             echo "Rollout 상태 확인 중..."
                             sleep 10
-                            /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 없음"
-
+                            /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 리소스 없음"
                         else
-                            echo "Argo Rollouts 미설치"
+                            echo "Argo Rollouts CRD 없음 - Controller 설치 필요"
+                            echo "사용 가능한 CRD 확인:"
+                            /usr/local/bin/kubectl get crd | grep -i rollout || echo "rollout CRD 없음"
                         fi
                         
                         echo "배포 완료"
@@ -480,29 +373,26 @@ pipeline {
                     echo "=== 배포 상태 확인 ==="
                     /usr/local/bin/kubectl get all -n app
                     
-                    echo "=== ConfigMap 확인 ==="
-                    /usr/local/bin/kubectl get configmaps -n app
-                    
-                    echo "=== Secret 확인 ==="
-                    /usr/local/bin/kubectl get secrets -n app
+                    echo "=== ConfigMap 및 Secret 확인 ==="
+                    /usr/local/bin/kubectl get configmaps,secrets -n app
                     
                     echo "=== Rollout 확인 ==="
                     if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
-                        /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 없음"
+                        /usr/local/bin/kubectl get rollouts -n app || echo "Rollout 리소스 없음"
                         
-                        # 각 Rollout 상태 확인
-                        if /usr/local/bin/kubectl get rollout auth-service-rollout -n app >/dev/null 2>&1; then
-                            echo "Auth Service Rollout 상태:"
-                            /usr/local/bin/kubectl argo rollouts get rollout auth-service-rollout -n app
-                        fi
-                        
-                        if /usr/local/bin/kubectl get rollout user-service-rollout -n app >/dev/null 2>&1; then
-                            echo "User Service Rollout 상태:"
-                            /usr/local/bin/kubectl argo rollouts get rollout user-service-rollout -n app
-                        fi
+                        # 개별 Rollout 상태 확인
+                        for rollout in auth-service-rollout user-service-rollout module-common-rollout; do
+                            if /usr/local/bin/kubectl get rollout $rollout -n app >/dev/null 2>&1; then
+                                echo "=== $rollout 상태 ==="
+                                /usr/local/bin/kubectl describe rollout $rollout -n app
+                            fi
+                        done
                     else
-                        echo "Argo Rollouts 미설치"
+                        echo "Argo Rollouts CRD 없음"
                     fi
+                    
+                    echo "=== 이벤트 확인 ==="
+                    /usr/local/bin/kubectl get events -n app --sort-by='.lastTimestamp' | tail -20 || echo "이벤트 없음"
                     
                     echo "=== 배포 확인 완료 ==="
                 '''
@@ -516,7 +406,7 @@ pipeline {
             sh '''
                 echo "=== 최종 배포 결과 ==="
                 /usr/local/bin/kubectl get pods -n app
-                echo "=== 이미지 확인 ==="
+                echo "=== 사용된 이미지 확인 ==="
                 /usr/local/bin/kubectl get pods -n app -o jsonpath="{.items[*].spec.containers[*].image}" | tr " " "\\n" | sort | uniq
             '''
         }
@@ -526,6 +416,13 @@ pipeline {
                 echo "=== 디버깅 정보 ==="
                 /usr/local/bin/kubectl get all -n app || echo "app 네임스페이스 없음"
                 /usr/local/bin/kubectl get events -n app --sort-by='.lastTimestamp' | tail -10 || echo "이벤트 없음"
+                
+                echo "=== Docker 상태 ==="
+                docker ps -a || echo "Docker 없음"
+                
+                echo "=== 시스템 리소스 ==="
+                free -h || echo "메모리 정보 없음"
+                df -h || echo "디스크 정보 없음"
             '''
         }
         always {
