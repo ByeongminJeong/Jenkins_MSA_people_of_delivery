@@ -8,15 +8,37 @@ pipeline {
             returnStdout: true
         ).trim()
 
-        // 브랜치명 정리 및 안전한 태그 생성
+        // 브랜치명 정리 및 안전한 태그 생성 (Jenkins 환경변수 우선 사용)
         BRANCH_NAME_CLEAN = sh(
             script: '''
-                if [ -n "${BRANCH_NAME}" ]; then
-                    # 브랜치명에서 특수문자를 대시로 변경하고 앞뒤 대시 제거
-                    echo "${BRANCH_NAME}" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//'
+                # Jenkins 환경변수들 확인
+                echo "DEBUG - BRANCH_NAME: ${BRANCH_NAME:-empty}"
+                echo "DEBUG - GIT_BRANCH: ${GIT_BRANCH:-empty}"
+                echo "DEBUG - CHANGE_BRANCH: ${CHANGE_BRANCH:-empty}"
+
+                # 브랜치명 결정 (우선순위: CHANGE_BRANCH > GIT_BRANCH > BRANCH_NAME)
+                if [ -n "${CHANGE_BRANCH}" ]; then
+                    CURRENT_BRANCH="${CHANGE_BRANCH}"
+                elif [ -n "${GIT_BRANCH}" ]; then
+                    CURRENT_BRANCH="${GIT_BRANCH}"
+                elif [ -n "${BRANCH_NAME}" ]; then
+                    CURRENT_BRANCH="${BRANCH_NAME}"
                 else
-                    echo "main"
+                    # Git에서 직접 브랜치명 가져오기
+                    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
                 fi
+
+                echo "DEBUG - Selected branch: $CURRENT_BRANCH"
+
+                # origin/ 접두사 제거 및 특수문자 처리
+                CLEAN_BRANCH=$(echo "$CURRENT_BRANCH" | sed 's|^origin/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
+
+                # 빈 값이면 기본값 사용
+                if [ -z "$CLEAN_BRANCH" ] || [ "$CLEAN_BRANCH" = "unknown" ]; then
+                    CLEAN_BRANCH="main"
+                fi
+
+                echo "$CLEAN_BRANCH"
             ''',
             returnStdout: true
         ).trim()
@@ -27,15 +49,19 @@ pipeline {
                 CLEAN_BRANCH="${BRANCH_NAME_CLEAN:-main}"
                 COMMIT_SHORT="${GIT_COMMIT_SHORT}"
 
+                echo "DEBUG - Building tag with CLEAN_BRANCH: $CLEAN_BRANCH, COMMIT_SHORT: $COMMIT_SHORT"
+
                 # 태그 유효성 검사
-                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ]; then
+                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ] && [ "$CLEAN_BRANCH" != "main" ]; then
                     TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
                 else
                     TAG="build-${BUILD_NUMBER}"
                 fi
 
                 # 태그가 하이픈으로 시작하지 않도록 보장
-                echo "$TAG" | sed 's/^-*//'
+                FINAL_TAG=$(echo "$TAG" | sed 's/^-*//')
+                echo "DEBUG - Final tag: $FINAL_TAG"
+                echo "$FINAL_TAG"
             ''',
             returnStdout: true
         ).trim()
