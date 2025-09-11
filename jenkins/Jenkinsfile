@@ -37,31 +37,35 @@ pipeline {
             returnStdout: true
         ).trim()
 
-        // 안전한 이미지 태그 생성
+        // 안전한 이미지 태그 생성: 브랜치명-커밋해시
         IMAGE_TAG = sh(
             script: '''
                 CLEAN_BRANCH="${BRANCH_NAME_CLEAN:-main}"
                 COMMIT_SHORT="${GIT_COMMIT_SHORT}"
 
-                if [ -z "$COMMIT_SHORT" ]; then
-                    COMMIT_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-                fi
+                echo "DEBUG - Building tag with CLEAN_BRANCH: $CLEAN_BRANCH, COMMIT_SHORT: $COMMIT_SHORT"
 
-                if [ -z "$CLEAN_BRANCH" ] || [ "$CLEAN_BRANCH" = "main" ]; then
-                    if [ -n "${GIT_BRANCH}" ]; then
-                        CLEAN_BRANCH=$(echo "${GIT_BRANCH}" | sed 's|^origin/||' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//')
-                    else
-                        CLEAN_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-*//' | sed 's/-*$//' || echo "main")
-                    fi
-                fi
-
-                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ] && [ "$COMMIT_SHORT" != "unknown" ]; then
+                # 브랜치명-커밋해시 형태로 태그 생성
+                if [ -n "$CLEAN_BRANCH" ] && [ -n "$COMMIT_SHORT" ]; then
                     TAG="${CLEAN_BRANCH}-${COMMIT_SHORT}"
                 else
-                    TAG="build-${BUILD_NUMBER}"
+                    echo "ERROR: 브랜치명 또는 커밋해시를 가져올 수 없습니다"
+                    exit 1
                 fi
 
-                echo "$TAG" | sed 's/^-*//'
+                # 태그가 하이픈으로 시작하지 않도록 보장
+                FINAL_TAG=$(echo "$TAG" | sed 's/^-*//')
+                echo "DEBUG - Final tag: $FINAL_TAG"
+                echo "$FINAL_TAG"
+            ''',
+            returnStdout: true
+        ).trim()
+
+        // 추가 태그들 생성 (latest만)
+        ADDITIONAL_TAGS = sh(
+            script: '''
+                # 항상 latest 태그만 추가
+                echo "latest"
             ''',
             returnStdout: true
         ).trim()
@@ -156,28 +160,46 @@ pipeline {
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
+                        export ADDITIONAL_TAGS_VAR="'''+ADDITIONAL_TAGS+'''"
 
                         echo "=== Auth Service 빌드 시작 ==="
                         echo "ECR_REGISTRY: ${ECR_REGISTRY}"
-                        echo "IMAGE_TAG: ${IMAGE_TAG_VAR}"
+                        echo "Main IMAGE_TAG: ${IMAGE_TAG_VAR}"
+                        echo "Additional TAGS: ${ADDITIONAL_TAGS_VAR}"
 
                         cd "${WORKSPACE}"
                         
                         if [ -f "./gradlew" ]; then
                             chmod +x ./gradlew
                             echo "Auth Service Gradle 빌드..."
-                            
-                            # 메모리 제한 없이 빌드 (데몬 비활성화로 메모리 최적화)
                             ./gradlew :auth-service:clean :auth-service:build -x test --no-daemon --stacktrace
                             
                             echo "Auth Service Docker 이미지 빌드..."
+
+                            # 메인 태그로 이미지 빌드
                             docker build -f ./auth-service/Dockerfile \
                                 -t ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR} .
                             
-                            echo "Auth Service ECR 푸시..."
+                            # 추가 태그들 적용
+                            for tag in ${ADDITIONAL_TAGS_VAR}; do
+                                echo "추가 태그 적용: $tag"
+                                docker tag ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR} \
+                                    ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:$tag
+                            done
+
+                            echo "Auth Service ECR 푸시 (모든 태그)..."
+
+                            # 메인 태그 푸시
                             docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:${IMAGE_TAG_VAR}
                             
+                            # 추가 태그들 푸시
+                            for tag in ${ADDITIONAL_TAGS_VAR}; do
+                                echo "추가 태그 푸시: $tag"
+                                docker push ${ECR_REGISTRY}/${ECR_PREFIX}/auth-service:$tag
+                            done
+
                             echo "Auth Service 빌드 완료"
+                            echo "생성된 태그들: ${IMAGE_TAG_VAR} ${ADDITIONAL_TAGS_VAR}"
                         else
                             echo "ERROR: Gradle wrapper not found"
                             exit 1
@@ -195,22 +217,44 @@ pipeline {
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
+                        export ADDITIONAL_TAGS_VAR="'''+ADDITIONAL_TAGS+'''"
 
                         echo "=== User Service 빌드 시작 ==="
-                        
+                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
+                        echo "Main IMAGE_TAG: ${IMAGE_TAG_VAR}"
+                        echo "Additional TAGS: ${ADDITIONAL_TAGS_VAR}"
+
                         cd "${WORKSPACE}"
                         
                         echo "User Service Gradle 빌드..."
                         ./gradlew :user-service:clean :user-service:build -x test --no-daemon --stacktrace
                         
                         echo "User Service Docker 이미지 빌드..."
+
+                        # 메인 태그로 이미지 빌드
                         docker build -f ./user-service/Dockerfile \
                             -t ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} .
                         
-                        echo "User Service ECR 푸시..."
+                        # 추가 태그들 적용
+                        for tag in ${ADDITIONAL_TAGS_VAR}; do
+                            echo "추가 태그 적용: $tag"
+                            docker tag ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR} \
+                                ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:$tag
+                        done
+
+                        echo "User Service ECR ���시 (모든 태그)..."
+
+                        # 메인 태그 푸시
                         docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:${IMAGE_TAG_VAR}
                         
+                        # 추가 태그들 푸시
+                        for tag in ${ADDITIONAL_TAGS_VAR}; do
+                            echo "추가 태그 푸시: $tag"
+                            docker push ${ECR_REGISTRY}/${ECR_PREFIX}/user-service:$tag
+                        done
+
                         echo "User Service 빌드 완료"
+                        echo "생성된 태그들: ${IMAGE_TAG_VAR} ${ADDITIONAL_TAGS_VAR}"
                     '''
                 }
             }
@@ -224,22 +268,44 @@ pipeline {
                         . $CONFIG_FILE
                         export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                         export IMAGE_TAG_VAR="'''+IMAGE_TAG+'''"
+                        export ADDITIONAL_TAGS_VAR="'''+ADDITIONAL_TAGS+'''"
 
                         echo "=== Module Common 빌드 시작 ==="
-                        
+                        echo "ECR_REGISTRY: ${ECR_REGISTRY}"
+                        echo "Main IMAGE_TAG: ${IMAGE_TAG_VAR}"
+                        echo "Additional TAGS: ${ADDITIONAL_TAGS_VAR}"
+
                         cd "${WORKSPACE}"
                         
                         echo "Module Common Gradle 빌드..."
                         ./gradlew :module-common:clean :module-common:build -x test --no-daemon --stacktrace
                         
                         echo "Module Common Docker 이미지 빌드..."
+
+                        # 메인 태그로 이미지 빌드
                         docker build -f ./module-common/Dockerfile \
                             -t ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR} .
                         
-                        echo "Module Common ECR 푸시..."
+                        # 추가 태그들 적용
+                        for tag in ${ADDITIONAL_TAGS_VAR}; do
+                            echo "추가 태그 적용: $tag"
+                            docker tag ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR} \
+                                ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:$tag
+                        done
+
+                        echo "Module Common ECR 푸시 (모든 태그)..."
+
+                        # 메인 태그 푸시
                         docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:${IMAGE_TAG_VAR}
                         
+                        # 추가 태그들 푸시
+                        for tag in ${ADDITIONAL_TAGS_VAR}; do
+                            echo "추가 태그 푸시: $tag"
+                            docker push ${ECR_REGISTRY}/${ECR_PREFIX}/module-common:$tag
+                        done
+
                         echo "Module Common 빌드 완료"
+                        echo "생성된 태그들: ${IMAGE_TAG_VAR} ${ADDITIONAL_TAGS_VAR}"
                     '''
                 }
             }
@@ -320,7 +386,7 @@ pipeline {
                             --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -
                         
                         echo "ConfigMap 및 Secret 생성 완료"
-                        
+
                         # Argo Rollouts 배포 확인
                         if /usr/local/bin/kubectl get crd rollouts.argoproj.io >/dev/null 2>&1; then
                             echo "Argo Rollouts 배포 시작..."
